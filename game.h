@@ -25,7 +25,7 @@ public:
 	Tank() : pos( float2( 0, 0 ) ), speed( float2( 0, 0 ) ), target( float2( 0, 0 ) ), reloading( 0 ) {};
 	~Tank();
 	void Fire( unsigned int party, float2& pos, float2& dir );
-	void Tick();
+	void Tick(unsigned int id);
 	float2 pos, speed, target;
 	float maxspeed;
 	int flags, reloading;

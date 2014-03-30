@@ -16,109 +16,7 @@ static float peakh[16] = { 200, 150, 160, 255, 200, 255, 200, 300, 120, 100, 80,
 static int aliveP1 = MAXP1, aliveP2 = MAXP2;
 static Bullet bullet[MAXBULLET];
 
-static const int qtMaxDepth = 2;
-static const int qtMaxTanks = 16;
-struct QuadTree
-{
-  QuadTree* nodes[4];
-  Tank* tanks[MAXP1 + MAXP2];
-  const int boundXmin, boundXmax, boundYmin, boundYmax;
-  int currentAmountOfTanks;
-  int currentDepth;
-
-  QuadTree(int bXmin, int bXmax, int bYmin, int bYmax, int depth) :
-    boundXmin(bXmin), boundXmax(bXmax), boundYmin(bYmin), boundYmax(bYmax),
-    currentDepth(depth), currentAmountOfTanks(0){
-    nodes[0] = nullptr;
-  };
-
-  ~QuadTree()
-  {
-    if (nodes[0] != nullptr)
-    {
-      delete nodes[0];
-      delete nodes[1];
-      delete nodes[2];
-      delete nodes[3];
-    }
-  }
-
-  void Split()
-  {
-    nodes[0] = new QuadTree(boundXmin, boundXmax >> 1, boundYmin, boundYmax >> 1, currentDepth + 1);
-    nodes[1] = new QuadTree(boundXmax >> 1, boundXmax, boundYmin, boundYmax >> 1, currentDepth + 1);
-    nodes[2] = new QuadTree(boundXmin, boundXmax >> 1, boundYmax >> 1, boundYmax, currentDepth + 1);
-    nodes[3] = new QuadTree(boundXmax >> 1, boundXmax, boundYmax >> 1, boundYmax, currentDepth + 1);
-
-    for (int i = 0; i < currentAmountOfTanks; i++)
-    {
-      nodes[0]->Add(tanks[i]);
-      nodes[1]->Add(tanks[i]);
-      nodes[2]->Add(tanks[i]);
-      nodes[3]->Add(tanks[i]);
-    }
-  }
-  void Add(Tank* a_tank)
-  {
-    if (Intersects(a_tank))
-    {
-      if (currentAmountOfTanks < qtMaxTanks)
-      {
-        tanks[currentAmountOfTanks++] = a_tank;
-      }
-      else
-      {
-        if (nodes[0] == nullptr)
-        {
-          if (currentDepth < qtMaxDepth)
-            Split();
-          else
-            tanks[currentAmountOfTanks++] = a_tank;
-        }
-        else
-        {
-          nodes[0]->Add(a_tank);
-          nodes[1]->Add(a_tank);
-          nodes[2]->Add(a_tank);
-          nodes[3]->Add(a_tank);
-        }
-      }
-    }
-  }
-  bool Intersects(Tank* a_tank)
-  {
-    float tankX = a_tank->pos.x, tankY = a_tank->pos.y;
-    if (tankX - 16 > boundXmax || tankX + 16 < boundXmin ||
-      tankY - 16 > boundYmax || tankY + 16 < boundYmin)
-      return false;
-    return true;
-  }
-
-  void Collide(Tank* a_tank, float2& a_force)
-  {
-    if (Intersects(a_tank))
-    {
-      if (nodes[0] == nullptr)
-      {
-        for (int i = 0; i < currentAmountOfTanks; i++)
-        {
-          if (tanks[i] == a_tank) continue;
-          float2 d = a_tank->pos - tanks[i]->pos;
-          if (Length(d) < 8) a_force += Normalize(d) * 2.0f;
-          else if (Length(d) < 16) a_force += Normalize(d) * 0.4f;
-        }
-      }
-      else
-      {
-        nodes[0]->Collide(a_tank, a_force);
-        nodes[1]->Collide(a_tank, a_force);
-        nodes[2]->Collide(a_tank, a_force);
-        nodes[3]->Collide(a_tank, a_force);
-      }
-    }
-  }
-};
-QuadTree* quadTree;
+float2 pushForces[MAXP1 + MAXP2];
 
 // smoke particle effect tick function
 void Smoke::Tick()
@@ -196,7 +94,6 @@ void Bullet::Tick()
 // Tank::Fire - spawns a bullet
 void Tank::Fire(unsigned int party, float2& pos, float2& dir)
 {
-  // High-level: Keep track of next bullet position. O(n*k) to O(n)
   // Low-level: Send tank's flags, saves an OR
   // dir == speed, pos == pos in tank. args unnecessary
   static int currentBullet = 0;
@@ -206,8 +103,9 @@ void Tank::Fire(unsigned int party, float2& pos, float2& dir)
   if (++currentBullet == MAXBULLET) currentBullet = 0;
 }
 
+
 // Tank::Tick - update single tank
-void Tank::Tick()
+void Tank::Tick(unsigned int id)
 {
   if (!(flags & ACTIVE)) // dead tank
   {
@@ -226,7 +124,7 @@ void Tank::Tick()
   }
 
   // evade other tanks
-  quadTree->Collide(this, force);
+  force += pushForces[id];
 
   // evade user dragged line
   if ((flags & P1) && (game->m_LButton))
@@ -386,6 +284,33 @@ void Game::PlayerInput()
   m_PrevButton = m_LButton;
 }
 
+void Game::UpdateTanks()
+{
+  // Clear array
+  memset(pushForces, 0, sizeof(float2)* (MAXP1 + MAXP2));
+  
+  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+  {
+    for (unsigned int k = i+1; k < (MAXP1 + MAXP2); k++)
+    {
+      float2 d = game->m_Tank[i]->pos - game->m_Tank[k]->pos;
+      if (Length(d) < 8)
+      {
+        pushForces[i] += Normalize(d) * 2.0f;
+        pushForces[k] -= Normalize(d) * 2.0f;
+      }
+      else if (Length(d) < 16)
+      {
+        pushForces[i] += Normalize(d) * 0.4f;
+        pushForces[k] -= Normalize(d) * 0.4f;
+      }
+    }
+  }
+
+  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+    m_Tank[i]->Tick(i);
+}
+
 // Game::Tick - main game loop
 void Game::Tick(float a_DT)
 {
@@ -401,12 +326,7 @@ void Game::Tick(float a_DT)
 
   // Update tanks
   timer.Start();
-  quadTree = new QuadTree(0, SCRWIDTH, 0, SCRHEIGHT, 0);
-  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
-    quadTree->Add(m_Tank[i]);
-  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
-    m_Tank[i]->Tick();
-  delete quadTree;
+  UpdateTanks();
   timer.Stop();
   auto utTiming = timer.Interval();
 

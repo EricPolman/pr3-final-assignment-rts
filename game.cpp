@@ -19,32 +19,69 @@ static Bullet bullet[MAXBULLET];
 // smoke particle effect tick function
 void Smoke::Tick()
 {
-	unsigned int p = frame >> 3;
-	if (frame < 64) if (!(frame++ & 7)) puff[p].x = xpos, puff[p].y = ypos << 8, puff[p].vy = -450, puff[p].life = 63;
-	for ( unsigned int i = 0; i < p; i++ ) if ((frame < 64) || (i & 1))
-	{
-		puff[i].x++, puff[i].y += puff[i].vy, puff[i].vy += 3;
-		int frame = (puff[i].life > 13)?(9 - (puff[i].life - 14) / 5):(puff[i].life / 2);
-		game->m_Smoke->SetFrame( frame );
-		game->m_Smoke->Draw( puff[i].x - 12, (puff[i].y >> 8) - 12, game->m_Surface );
-		if (!--puff[i].life) puff[i].x = xpos, puff[i].y = ypos << 8, puff[i].vy = -450, puff[i].life = 63;
-	}
+  //frame is member of Smoke
+	unsigned int p = frame >> 3; // Frame divided by 8
+  if (frame < 64)
+  {
+    //if frame % 8 == 0, use p as index. if frame is 56, statement is true and p==7
+    if (!(frame++ & 7)) //Clamp frame to range of 8 puffs, check if 0, increment value anyway
+      puff[p].x = xpos,
+      puff[p].y = ypos << 8,
+      puff[p].vy = -450,
+      puff[p].life = 63;
+  }
+
+  // First draws 8 puffs, then continues to loop 4 puffs (if i % 2 == 1), so p=1, p=3, p=5, and p=7
+  for (unsigned int i = 0; i < p; i++)
+  {
+    if ((frame < 64) || (i & 1))
+    {
+      puff[i].x++, puff[i].y += puff[i].vy, puff[i].vy += 3; //Integration of smoke puff
+
+      int animframe = (puff[i].life > 13) ? (9 - (puff[i].life - 14) / 5) : (puff[i].life / 2);
+      game->m_Smoke->SetFrame(animframe);
+      game->m_Smoke->Draw(puff[i].x - 12, (puff[i].y >> 8) - 12, game->m_Surface);
+      if (!--puff[i].life)  // Decrease life, if hits zero, reset smoke and start again
+        puff[i].x = xpos, 
+        puff[i].y = ypos << 8, 
+        puff[i].vy = -450, 
+        puff[i].life = 63;
+    }
+  }
 }
 
 // bullet Tick function
 void Bullet::Tick()
 {
-	if (!(flags & Bullet::ACTIVE)) return;
+  // flags == 0? return
+	if (!(flags & Bullet::ACTIVE)) 
+    return;
+
+  // Integration
 	float2 prevpos = pos;
 	pos += 1.5f * speed, prevpos -= pos - prevpos;
+
+  // Drawing bullet
 	game->m_Surface->AddLine( prevpos.x, prevpos.y, pos.x, pos.y, 0x555555 );
-	if ((pos.x < 0) || (pos.x > (SCRWIDTH - 1)) || (pos.y < 0) || (pos.y > (SCRHEIGHT - 1))) flags = 0; // off-screen
+
+  // Screen culling
+	if ((pos.x < 0) || (pos.x > (SCRWIDTH - 1)) || (pos.y < 0) || (pos.y > (SCRHEIGHT - 1))) 
+    flags = 0; // off-screen
+
+  // Determine opponents to check
 	unsigned int start = 0, end = MAXP1;
 	if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
+
+  // Distance checking?
 	for ( unsigned int i = start; i < end; i++ ) // check all opponents
 	{
 		Tank* t = game->m_Tank[i];
-		if (!((t->flags & Tank::ACTIVE) && (pos.x > (t->pos.x - 2)) && (pos.y > (t->pos.y - 2)) && (pos.x < (t->pos.x + 2)) && (pos.y < (t->pos.y + 2)))) continue;
+
+		if (!((t->flags & Tank::ACTIVE) && 
+      (pos.x > (t->pos.x - 2)) && (pos.y > (t->pos.y - 2)) && 
+      (pos.x < (t->pos.x + 2)) && (pos.y < (t->pos.y + 2)))) 
+      continue;
+
 		if (t->flags & Tank::P1) aliveP1--; else aliveP2--; // update counters
 		t->flags &= Tank::P1|Tank::P2;	// kill tank
 		flags = 0;						// destroy bullet
@@ -53,14 +90,20 @@ void Bullet::Tick()
 }
 
 // Tank::Fire - spawns a bullet
-void Tank::Fire( unsigned int party, float2& pos, float2& dir )
+void Tank::Fire(unsigned int party, float2& pos, float2& dir)
 {
-	for ( unsigned int i = 0; i < MAXBULLET; i++ ) if (!(bullet[i].flags & Bullet::ACTIVE))
-	{
-		bullet[i].flags |= Bullet::ACTIVE + party; // set owner, set active
-		bullet[i].pos = pos, bullet[i].speed = speed;
-		break;
-	}
+  // High-level: Keep track of next bullet position. O(n*k) to O(n)
+  // Low-level: Send tank's flags, saves an OR
+  // dir == speed, pos == pos in tank. args unnecessary
+  for (unsigned int i = 0; i < MAXBULLET; i++)
+  {
+    if (!(bullet[i].flags & Bullet::ACTIVE))
+    {
+      bullet[i].flags |= Bullet::ACTIVE + party; // set owner, set active
+      bullet[i].pos = pos, bullet[i].speed = speed;
+      break;
+    }
+  }
 }
 
 // Tank::Tick - update single tank
@@ -71,6 +114,8 @@ void Tank::Tick()
 		smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
 		return smoke.Tick();
 	}
+
+  // Complexity: O(n*k) (tanks*mountains)
 	float2 force = Normalize( target - pos );
 	// evade mountain peaks
 	for ( unsigned int i = 0; i < 16; i++ )
@@ -79,6 +124,8 @@ void Tank::Tick()
 		float sd = (d.x * d.x + d.y * d.y) * 0.2f;
 		if (sd < 1500) force += d * 0.03f * (peakh[i] / sd);		
 	}
+
+  // Complexity: O(n^2) (tanks*tanks)
 	// evade other tanks
 	for ( unsigned int i = 0; i < (MAXP1 + MAXP2); i++ )
 	{
@@ -87,6 +134,7 @@ void Tank::Tick()
 		if (Length( d ) < 8) force += Normalize( d ) * 2.0f;
 		else if (Length( d ) < 16) force += Normalize( d ) * 0.4f;
 	}
+
 	// evade user dragged line
 	if ((flags & P1) && (game->m_LButton))
 	{
@@ -98,10 +146,13 @@ void Tank::Tick()
 	}
 	// update speed using accumulated force
 	speed += force, speed = Normalize( speed ), pos += speed * maxspeed * 0.5f;
+
 	// shoot, if reloading completed
 	if (--reloading >= 0) return;
+
 	unsigned int start = 0, end = MAXP1;
 	if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
+
 	for ( unsigned int i = start; i < end; i++ ) if (game->m_Tank[i]->flags & ACTIVE)
 	{
 		float2 d = game->m_Tank[i]->pos - pos;
@@ -155,6 +206,10 @@ void Game::Init()
 // Game::DrawTanks - draw the tanks
 void Game::DrawTanks()
 {
+  TimerRDTSC timer;
+
+  timer.Start();
+  // Intense waste of resources. 
 	for ( int x = 0; x < 1024; x++ ) for ( int y = 0; y < 768; y++ ) // draw player army glow
 	{
 		Pixel glow = 0;
@@ -167,13 +222,22 @@ void Game::DrawTanks()
 		}
 		m_Surface->GetBuffer()[x + y * SCRWIDTH] |= glow;
 	}
+  timer.Stop();
+  auto timing = timer.Interval();
+
+  char glowTimingsStr[128];
+  sprintf(glowTimingsStr, "- Glow: %03i", timing);
+  m_Surface->Print(glowTimingsStr, 20, 70, 0xffff00);
+
+  timer.Start();
 	for ( unsigned int i = 0; i < (MAXP1 + MAXP2); i++ )
 	{
 		Tank* t = m_Tank[i];
 		float x = t->pos.x, y = t->pos.y;
 		float2 p1( x + 70 * t->speed.x + 22 * t->speed.y, y + 70 * t->speed.y - 22 * t->speed.x );
 		float2 p2( x + 70 * t->speed.x - 22 * t->speed.y, y + 70 * t->speed.y + 22 * t->speed.x );
-		if (!(m_Tank[i]->flags & Tank::ACTIVE)) m_PXSprite->Draw( (int)x - 4, (int)y - 4, m_Surface ); // draw dead tank
+		if (!(m_Tank[i]->flags & Tank::ACTIVE)) 
+      m_PXSprite->Draw( (int)x - 4, (int)y - 4, m_Surface ); // draw dead tank
 		else if (t->flags & Tank::P1) // draw blue tank
 		{
 			m_P1Sprite->Draw( (int)x - 4, (int)y - 4, m_Surface );
@@ -184,9 +248,17 @@ void Game::DrawTanks()
 			m_P2Sprite->Draw( (int)x - 4, (int)y - 4, m_Surface );
 			m_Surface->Line( x, y, x + 8 * t->speed.x, y + 8 * t->speed.y, 0xff4444 );
 		}
+
+    // Drawing tracks if in screen. 
 		if ((x >= 0) && (x < SCRWIDTH) && (y >= 0) && (y < SCRHEIGHT))
-			m_Backdrop->GetBuffer()[(int)x + (int)y * SCRWIDTH] = SubBlend( m_Backdrop->GetBuffer()[(int)x + (int)y * SCRWIDTH], 0x030303 ); // tracks
-	}
+			m_Backdrop->GetBuffer()[(int)x + (int)y * SCRWIDTH] = 
+        SubBlend( m_Backdrop->GetBuffer()[(int)x + (int)y * SCRWIDTH], 0x030303 ); // tracks
+  }
+  timer.Stop();
+  timing = timer.Interval();
+  char drawTimingsStr[128];
+  sprintf(drawTimingsStr, "- The rest: %03i", timing);
+  m_Surface->Print(drawTimingsStr, 20, 80, 0xffff00);
 }
 
 // Game::PlayerInput - handle player input
@@ -215,11 +287,47 @@ void Game::Tick( float a_DT )
 	GetCursorPos( &p );
 	ScreenToClient( FindWindow( NULL, "Template" ), &p );
 	m_LButton = (GetAsyncKeyState( VK_LBUTTON ) != 0), m_MouseX = p.x, m_MouseY = p.y;
-	m_Backdrop->CopyTo( m_Surface, 0, 0 );
-	for ( unsigned int i = 0; i < (MAXP1 + MAXP2); i++ ) m_Tank[i]->Tick();
-	for ( unsigned int i = 0; i < MAXBULLET; i++ ) bullet[i].Tick();
+
+  TimerRDTSC timer;
+
+  // Drawing backdrop
+  m_Backdrop->CopyTo( m_Surface, 0, 0 );
+
+  // Update tanks
+  timer.Start();
+	for ( unsigned int i = 0; i < (MAXP1 + MAXP2); i++ ) 
+    m_Tank[i]->Tick();
+  timer.Stop();
+  auto utTiming = timer.Interval();
+
+  // Update bullets
+  timer.Start();
+	for ( unsigned int i = 0; i < MAXBULLET; i++ ) 
+    bullet[i].Tick();
+  timer.Stop();
+  auto blTiming = timer.Interval();
+
+  // Draw tanks
+  timer.Start();
 	DrawTanks();
-	PlayerInput();
+  timer.Stop();
+  auto dtTiming = timer.Interval();
+
+  PlayerInput();
+
+  //Timings:
+  char utTimingsStr[128];
+  sprintf(utTimingsStr, "Update Tanks: %03i", utTiming);
+  m_Surface->Print(utTimingsStr, 10, 40, 0xffff00);
+
+  char blTimingsStr[128];
+  sprintf(blTimingsStr, "Update Bullets: %03i", blTiming);
+  m_Surface->Print(blTimingsStr, 10, 50, 0xffff00);
+
+  char dtTimingsStr[128];
+  sprintf(dtTimingsStr, "Draw Tanks: %03i", dtTiming);
+  m_Surface->Print(dtTimingsStr, 10, 60, 0xffff00);
+
 	char buffer[128];
 	if ((aliveP1 > 0) && (aliveP2 > 0))
 	{

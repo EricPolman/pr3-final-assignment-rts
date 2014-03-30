@@ -9,13 +9,13 @@ High-Level
 	Nuthin'?
 	
 * Tank::Fire()
-	Keep track of next bullet position. O(n*k) to O(n)
+X	Keep track of next bullet position. O(n*k) to O(n)
 	
 * Tank::Tick()
 	Nuthin?
 	
 * Game::DrawTanks()
-	Optimize glow: O(n*k) where K=1024*768, could possibly be K=40*40
+X	Optimize glow: O(n*k) where K=1024*768, could possibly be K=40*40
 	
 * Game::Tick()
 	

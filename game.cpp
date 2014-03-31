@@ -103,11 +103,16 @@ void Tank::Fire(unsigned int party, float2& pos, float2& dir)
 {
   // Low-level: Send tank's flags, saves an OR
   // dir == speed, pos == pos in tank. args unnecessary
-  static int currentBullet = 0;
-  bullet[currentBullet].flags |= Bullet::ACTIVE + party; // set owner, set active
-  bullet[currentBullet].pos = pos, bullet[currentBullet].speed = speed;
+  for (unsigned int i = 0; i < MAXBULLET; i++)
+  {
+    if (!(bullet[i].flags & Bullet::ACTIVE))
+    {
+      bullet[i].flags |= Bullet::ACTIVE + party; // set owner, set active
+      bullet[i].pos = pos, bullet[i].speed = speed;
+      break;
+    }
+  }
 
-  if (++currentBullet == MAXBULLET) currentBullet = 0;
 }
 
 
@@ -132,7 +137,14 @@ void Tank::Tick(unsigned int id)
   }
 
   // evade other tanks
-  force += pushForces[id];
+  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+  {
+    if (game->m_Tank[i] == this) continue;
+    float2 d = pos - game->m_Tank[i]->pos;
+    if (Length(d) < 8) force += Normalize(d) * 2.0f;
+    else if (Length(d) < 16) force += Normalize(d) * 0.4f;
+  }
+  //force += pushForces[id];
 
   // evade user dragged line
   if ((flags & P1) && (game->m_LButton))
@@ -144,7 +156,7 @@ void Tank::Tick(unsigned int id)
     if (fabs(dist) < 10) if (dist > 0) force += 20 * N; else force -= 20 * N;
   }
   // update speed using accumulated force
-  speed += force, speed = Normalize(speed), pos += speed * maxspeed * 0.5f;
+
 
   // shoot, if reloading completed
   if (--reloading >= 0) return;
@@ -215,32 +227,19 @@ void Game::DrawTanks()
   static TimerRDTSC timer;
 
   timer.Start();
-  for (unsigned int i = 0; i < MAXP1; i++)
+  for (int x = 0; x < 1024; x++) for (int y = 0; y < 768; y++) // draw player army glow
   {
-    if (!(m_Tank[i]->flags & Tank::ACTIVE)) continue;
-
-    int xMin = m_Tank[i]->pos.x - 20;
-    int yMin = m_Tank[i]->pos.y - 20;
-    int xMax = xMin + 40;
-    int yMax = yMin + 40;
-    xMin = MAX(xMin, 0);
-    yMin = MAX(yMin, 0);
-    xMax = MIN(xMax, SCRWIDTH);
-    yMax = MIN(yMax, SCRHEIGHT);
-
-    for (int y = yMin; y < yMax; y++)
+    Pixel glow = 0;
+    for (unsigned int i = 0; i < MAXP1; i++)
     {
-      for (int x = xMin; x < xMax; x++)
-      {
-        float dx = m_Tank[i]->pos.x - x;
-        float dy = m_Tank[i]->pos.y - y;
-        float dist = dx * dx + dy * dy;
-
-        if (dist < 400.f) // Sqdst of 20
-          m_Surface->GetBuffer()[x + y * SCRWIDTH] |= 0x660000;
-      }
+      Tank* t = m_Tank[i];
+      if (!(t->flags & Tank::ACTIVE)) continue;
+      float dx = t->pos.x - x, dy = t->pos.y - y, dist = dx * dx + dy * dy;
+      if (dist < 400.f) glow = 0x660000;
     }
+    m_Surface->GetBuffer()[x + y * SCRWIDTH] |= glow;
   }
+
   timer.Stop();
   glowTimings += timer.Interval();
   ++glowCount;
@@ -349,7 +348,8 @@ void Game::Tick(float a_DT)
 
   // Update tanks
   timer.Start();
-  UpdateTanks();
+  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+    m_Tank[i]->Tick(i);
   timer.Stop();
   utTimingPrev += utTiming;
   utTiming = timer.Interval();

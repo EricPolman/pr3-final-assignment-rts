@@ -20,6 +20,7 @@ float2 pushForces[MAXP1 + MAXP2];
 
 unsigned long long smokeTiming;
 TimerRDTSC smokeTimer;
+unsigned long long smokeCount = 0;
 // smoke particle effect tick function
 void Smoke::Tick()
 {
@@ -54,7 +55,8 @@ void Smoke::Tick()
     }
   }
   smokeTimer.Stop();
-  smokeTiming = smokeTimer.Interval();
+  smokeTiming += smokeTimer.Interval();
+  ++smokeCount;
 }
 
 // bullet Tick function
@@ -206,6 +208,7 @@ void Game::Init()
 
 // Game::DrawTanks - draw the tanks
 unsigned long long glowTimings = 0;
+unsigned long long restTimings = 0;
 unsigned long long glowCount = 0;
 void Game::DrawTanks()
 {
@@ -239,8 +242,7 @@ void Game::DrawTanks()
     }
   }
   timer.Stop();
-  auto timing = timer.Interval();
-  glowTimings += timing;
+  glowTimings += timer.Interval();
   ++glowCount;
 
   char glowTimingsStr[128];
@@ -273,9 +275,9 @@ void Game::DrawTanks()
       SubBlend(m_Backdrop->GetBuffer()[(int)x + (int)y * SCRWIDTH], 0x030303); // tracks
   }
   timer.Stop();
-  timing = timer.Interval();
+  restTimings += timer.Interval();
   char drawTimingsStr[128];
-  sprintf(drawTimingsStr, "- The rest: %03i", timing);
+  sprintf(drawTimingsStr, "- The rest: %03i", restTimings / glowCount);
   m_Surface->Print(drawTimingsStr, 20, 80, 0xffff00);
 }
 
@@ -384,9 +386,12 @@ void Game::Tick(float a_DT)
   sprintf(dtTimingsStr, "Draw Tanks: %03i", dtTimingPrev / timingCount);
   m_Surface->Print(dtTimingsStr, 10, 60, 0xffff00);
 
-  char smokeTimingstr[128];
-  sprintf(smokeTimingstr, "Smoke::Tick(): %03i", smokeTiming);
-  game->m_Surface->Print(smokeTimingstr, 10, 90, 0xffff00);
+  if (smokeCount > 0)
+  {
+    char smokeTimingstr[128];
+    sprintf(smokeTimingstr, "Smoke::Tick(): %03i", smokeTiming / smokeCount);
+    game->m_Surface->Print(smokeTimingstr, 10, 90, 0xffff00);
+  }
 
   char buffer[128];
   if ((aliveP1 > 0) && (aliveP2 > 0))

@@ -18,9 +18,12 @@ static Bullet bullet[MAXBULLET];
 
 float2 pushForces[MAXP1 + MAXP2];
 
+unsigned long long smokeTiming;
+TimerRDTSC smokeTimer;
 // smoke particle effect tick function
 void Smoke::Tick()
 {
+  smokeTimer.Start();
   //frame is member of Smoke
   unsigned int p = frame >> 3; // Frame divided by 8
   if (frame < 64)
@@ -36,7 +39,7 @@ void Smoke::Tick()
   // First draws 8 puffs, then continues to loop 4 puffs (if i % 2 == 1), so p=1, p=3, p=5, and p=7
   for (unsigned int i = 0; i < p; i++)
   {
-    if ((frame < 64) || (i & 1))
+    if ((frame < 64) || (i & 1)) // Short-circuiting possible here
     {
       puff[i].x++, puff[i].y += puff[i].vy, puff[i].vy += 3; //Integration of smoke puff
 
@@ -50,6 +53,8 @@ void Smoke::Tick()
         puff[i].life = 63;
     }
   }
+  smokeTimer.Stop();
+  smokeTiming = smokeTimer.Interval();
 }
 
 // bullet Tick function
@@ -110,6 +115,7 @@ void Tank::Tick(unsigned int id)
   if (!(flags & ACTIVE)) // dead tank
   {
     smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
+    // Really inefficient
     return smoke.Tick();
   }
 
@@ -144,14 +150,18 @@ void Tank::Tick(unsigned int id)
   unsigned int start = 0, end = MAXP1;
   if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
 
-  for (unsigned int i = start; i < end; i++) if (game->m_Tank[i]->flags & ACTIVE)
+  // Complexity is O(n^2)
+  for (unsigned int i = start; i < end; i++)
   {
-    float2 d = game->m_Tank[i]->pos - pos;
-    if ((Length(d) < 100) && (Dot(Normalize(d), speed) > 0.99999f))
+    if (game->m_Tank[i]->flags & ACTIVE)
     {
-      Fire(flags & (P1 | P2), pos, speed); // shoot
-      reloading = 200; // and wait before next shot is ready
-      break;
+      float2 d = game->m_Tank[i]->pos - pos;
+      if ((Length(d) < 100) && (Dot(Normalize(d), speed) > 0.99999f))
+      {
+        Fire(flags & (P1 | P2), pos, speed); // shoot
+        reloading = 200; // and wait before next shot is ready
+        break;
+      }
     }
   }
 }
@@ -195,9 +205,11 @@ void Game::Init()
 }
 
 // Game::DrawTanks - draw the tanks
+unsigned long long glowTimings = 0;
+unsigned long long glowCount = 0;
 void Game::DrawTanks()
 {
-  TimerRDTSC timer;
+  static TimerRDTSC timer;
 
   timer.Start();
   for (unsigned int i = 0; i < MAXP1; i++)
@@ -228,9 +240,11 @@ void Game::DrawTanks()
   }
   timer.Stop();
   auto timing = timer.Interval();
+  glowTimings += timing;
+  ++glowCount;
 
   char glowTimingsStr[128];
-  sprintf(glowTimingsStr, "- Glow: %03i", timing);
+  sprintf(glowTimingsStr, "- Glow: %03i", glowTimings / glowCount);
   m_Surface->Print(glowTimingsStr, 20, 70, 0xffff00);
 
   timer.Start();
@@ -311,6 +325,13 @@ void Game::UpdateTanks()
     m_Tank[i]->Tick(i);
 }
 
+unsigned long long utTiming = 0;
+unsigned long long blTiming = 0;
+unsigned long long dtTiming = 0;
+unsigned long long utTimingPrev = 0;
+unsigned long long blTimingPrev = 0;
+unsigned long long dtTimingPrev = 0;
+unsigned long long timingCount = 0;
 // Game::Tick - main game loop
 void Game::Tick(float a_DT)
 {
@@ -328,35 +349,44 @@ void Game::Tick(float a_DT)
   timer.Start();
   UpdateTanks();
   timer.Stop();
-  auto utTiming = timer.Interval();
+  utTimingPrev += utTiming;
+  utTiming = timer.Interval();
 
   // Update bullets
   timer.Start();
   for (unsigned int i = 0; i < MAXBULLET; i++)
     bullet[i].Tick();
   timer.Stop();
-  auto blTiming = timer.Interval();
+  blTimingPrev += blTiming;
+  blTiming = timer.Interval();
 
   // Draw tanks
   timer.Start();
   DrawTanks();
   timer.Stop();
-  auto dtTiming = timer.Interval();
+  dtTimingPrev += dtTiming;
+  dtTiming = timer.Interval();
 
   PlayerInput();
 
   //Timings:
+  timingCount++;
+
   char utTimingsStr[128];
-  sprintf(utTimingsStr, "Update Tanks: %03i", utTiming);
+  sprintf(utTimingsStr, "Update Tanks: %03i", utTimingPrev / timingCount);
   m_Surface->Print(utTimingsStr, 10, 40, 0xffff00);
 
   char blTimingsStr[128];
-  sprintf(blTimingsStr, "Update Bullets: %03i", blTiming);
+  sprintf(blTimingsStr, "Update Bullets: %03i", blTimingPrev / timingCount);
   m_Surface->Print(blTimingsStr, 10, 50, 0xffff00);
 
   char dtTimingsStr[128];
-  sprintf(dtTimingsStr, "Draw Tanks: %03i", dtTiming);
+  sprintf(dtTimingsStr, "Draw Tanks: %03i", dtTimingPrev / timingCount);
   m_Surface->Print(dtTimingsStr, 10, 60, 0xffff00);
+
+  char smokeTimingstr[128];
+  sprintf(smokeTimingstr, "Smoke::Tick(): %03i", smokeTiming);
+  game->m_Surface->Print(smokeTimingstr, 10, 90, 0xffff00);
 
   char buffer[128];
   if ((aliveP1 > 0) && (aliveP2 > 0))

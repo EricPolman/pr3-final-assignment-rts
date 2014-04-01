@@ -74,26 +74,24 @@ void Bullet::Tick()
   float2 prevpos = pos;
   pos += 1.5f * speed, prevpos -= pos - prevpos;
 
+  game->m_Surface->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
+
   // Screen culling
   if ((pos.x < 0) || (pos.x >(SCRWIDTH - 1)) || (pos.y < 0) || (pos.y >(SCRHEIGHT - 1)))
   {
     flags = 0; // off-screen
     return;
   }
-
   // Drawing bullet
-  game->m_Surface->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
 
   // Determine opponents to check
-  unsigned int start = 0, end = MAXP1;
-  if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
 
   const int2 currentTile((int)pos.x / 32, (int)pos.y / 32);
   for (unsigned int i = 0; i < idTankGrid[currentTile.y][currentTile.x]; i++)
   {
     Tank* t = tankGrid[currentTile.y][currentTile.x][i];
 
-    if (t->flags & (Tank::ACTIVE | ((flags & Bullet::P1) ? Tank::P2 : Tank::P1)))
+    if (t->flags & (Tank::ACTIVE) && t->flags & ((flags & Bullet::P1) ? Tank::P2 : Tank::P1))
     {
       if ((pos.x >(t->pos.x - 2)) && (pos.y > (t->pos.y - 2)) &&
         (pos.x < (t->pos.x + 2)) && (pos.y < (t->pos.y + 2)))

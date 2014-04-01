@@ -18,6 +18,9 @@ static Bullet bullet[MAXBULLET];
 
 float2 pushForces[MAXP1 + MAXP2];
 
+Tank* tankGrid[SCRHEIGHT / 32][SCRWIDTH / 32][128];
+unsigned int idTankGrid[SCRHEIGHT / 32][SCRWIDTH / 32];
+
 unsigned long long smokeTiming;
 TimerRDTSC smokeTimer;
 unsigned long long smokeCount = 0;
@@ -112,6 +115,7 @@ void Tank::Fire(unsigned int party, float2& pos, float2& dir)
 
 
 // Tank::Tick - update single tank
+TimerRDTSC mountainCyclesTimer;
 void Tank::Tick(unsigned int id)
 {
   if (!(flags & ACTIVE)) // dead tank
@@ -124,13 +128,15 @@ void Tank::Tick(unsigned int id)
   // Complexity: O(n*k) (tanks*mountains)
   float2 force = Normalize(target - pos);
   // evade mountain peaks
+  mountainCyclesTimer.Start();
   for (unsigned int i = 0; i < 16; i++)
   {
     float2 d(pos.x - peakx[i], pos.y - peaky[i]);
     float sd = (d.x * d.x + d.y * d.y) * 0.2f;
     if (sd < 1500) force += d * 0.03f * (peakh[i] / sd);
   }
-
+  mountainCyclesTimer.Stop();
+  //printf("%llu\n", mountainCyclesTimer.Interval());
   // evade other tanks
   force += pushForces[id];
 
@@ -195,6 +201,7 @@ void Game::Init()
     t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P1, t->maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
   }
   // create red tanks
+#pragma 
   for (unsigned int i = 0; i < MAXP2; i++)
   {
     Tank* t = m_Tank[i + MAXP1] = new Tank();
@@ -300,33 +307,8 @@ void Game::PlayerInput()
   m_PrevButton = m_LButton;
 }
 
-void Game::UpdateTanks()
-{
-  // Clear array
-  memset(pushForces, 0, sizeof(float2)* (MAXP1 + MAXP2));
-  
-  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
-  {
-    for (unsigned int k = i+1; k < (MAXP1 + MAXP2); k++)
-    {
-      float2 d = game->m_Tank[i]->pos - game->m_Tank[k]->pos;
-      if (Length(d) < 8)
-      {
-        pushForces[i] += Normalize(d) * 2.0f;
-        pushForces[k] -= Normalize(d) * 2.0f;
-      }
-      else if (Length(d) < 16)
-      {
-        pushForces[i] += Normalize(d) * 0.4f;
-        pushForces[k] -= Normalize(d) * 0.4f;
-      }
-    }
-  }
-
-  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
-    m_Tank[i]->Tick(i);
-}
-
+//Tank* tankGrid[SCRWIDTH / 32][SCRHEIGHT / 32][128];
+//unsigned int idTankGrid[SCRWIDTH / 32][SCRHEIGHT / 32];
 unsigned long long utTiming = 0;
 unsigned long long blTiming = 0;
 unsigned long long dtTiming = 0;
@@ -337,6 +319,7 @@ unsigned long long timingCount = 0;
 // Game::Tick - main game loop
 void Game::Tick(float a_DT)
 {
+  //printf("%i\n", sizeof(Tank));
   POINT p;
   GetCursorPos(&p);
   ScreenToClient(FindWindow(NULL, "Template"), &p);
@@ -406,4 +389,116 @@ void Game::Tick(float a_DT)
   }
   sprintf(buffer, "nice, you win! blue left: %i", aliveP1);
   m_Surface->Print(buffer, 200, 370, 0xffff00);
+}
+
+
+void Game::UpdateTanks()
+{
+  // Clear array
+  memset(pushForces, 0, sizeof(float2)* (MAXP1 + MAXP2));
+  memset(idTankGrid, 0, sizeof(unsigned int)* (SCRWIDTH / 32 * SCRHEIGHT / 32));
+  memset(tankGrid, 0, sizeof(Tank*)* (SCRWIDTH / 32 * SCRHEIGHT / 32 * 128));
+
+  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+  {
+    int2 ipos(m_Tank[i]->pos.x, m_Tank[i]->pos.y);
+    ipos.x /= 32;
+    ipos.y /= 32;
+    if (ipos.x >= 0 && ipos.x < 32 && ipos.y >= 0 && ipos.y < 24)
+      tankGrid[ipos.y][ipos.x][idTankGrid[ipos.y][ipos.x]++] = game->m_Tank[i];
+  }
+
+  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+  {
+    int2 ipos(m_Tank[i]->pos.x, m_Tank[i]->pos.y);
+    if (ipos.x < 0 || ipos.x > SCRWIDTH - 1 || ipos.y < 0 || ipos.y > SCRHEIGHT - 1)
+      continue;
+
+    ipos.x /= 32;
+    ipos.y /= 32;
+
+    for (int j = 0; j < idTankGrid[ipos.y][ipos.x]; j++)
+    {
+      if (m_Tank[i] == tankGrid[ipos.y][ipos.x][j])
+        continue;
+
+      float2 d = m_Tank[i]->pos - tankGrid[ipos.y][ipos.x][j]->pos;
+      float len = Length(d);
+      if (len < 8)
+      {
+        pushForces[i] += Normalize(d) * 2.0f;
+      }
+      else if (len < 16)
+      {
+        pushForces[i] += Normalize(d) * 0.4f;
+      }
+    }
+    if (ipos.x > 0)
+    {
+      for (int j = 0; j < idTankGrid[ipos.y][ipos.x-1]; j++)
+      {
+        float2 d = m_Tank[i]->pos - tankGrid[ipos.y][ipos.x-1][j]->pos;
+        float len = Length(d);
+        if (len < 8)
+        {
+          pushForces[i] += Normalize(d) * 2.0f;
+        }
+        else if (len < 16)
+        {
+          pushForces[i] += Normalize(d) * 0.4f;
+        }
+      }
+    }
+    if (ipos.x < 31)
+    {
+      for (int j = 0; j < idTankGrid[ipos.y][ipos.x + 1]; j++)
+      {
+        float2 d = m_Tank[i]->pos - tankGrid[ipos.y][ipos.x + 1][j]->pos;
+        float len = Length(d);
+        if (len < 8)
+        {
+          pushForces[i] += Normalize(d) * 2.0f;
+        }
+        else if (len < 16)
+        {
+          pushForces[i] += Normalize(d) * 0.4f;
+        }
+      }
+    }
+    if (ipos.y > 0)
+    {
+      for (int j = 0; j < idTankGrid[ipos.y-1][ipos.x]; j++)
+      {
+        float2 d = m_Tank[i]->pos - tankGrid[ipos.y-1][ipos.x][j]->pos;
+        float len = Length(d);
+        if (len < 8)
+        {
+          pushForces[i] += Normalize(d) * 2.0f;
+        }
+        else if (len < 16)
+        {
+          pushForces[i] += Normalize(d) * 0.4f;
+        }
+      }
+      if (ipos.y < 23)
+      {
+        for (int j = 0; j < idTankGrid[ipos.y + 1][ipos.x]; j++)
+        {
+          float2 d = m_Tank[i]->pos - tankGrid[ipos.y + 1][ipos.x][j]->pos;
+          float len = Length(d);
+          if (len < 8)
+          {
+            pushForces[i] += Normalize(d) * 2.0f;
+          }
+          else if (len < 16)
+          {
+            pushForces[i] += Normalize(d) * 0.4f;
+          }
+        }
+      }
+    }
+  }
+
+  for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+    m_Tank[i]->Tick(i);
 }

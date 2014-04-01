@@ -410,16 +410,19 @@ void Sprite::Draw( int a_X, int a_Y, Surface* a_Target )
 			const int lsx = m_Start[m_CurrentFrame][line] + a_X;
 			if (m_Flags & FLARE)
 			{
-				xs = (lsx > x1)?lsx - x1:0;
-				for ( int x = xs; x < width; x++ )
-				{
-					const Pixel c1 = *(src + x);
-					if (c1 & 0xffffff) 
-					{
-						const Pixel c2 = *(dest + addr + x);
-						*(dest + addr + x) = AddBlend( c1, c2 );
-					}
-				}
+				xs = (lsx > x1) ? lsx - x1 : 0;
+        for (int x = xs; x < width; x++)
+        {
+          if ((*(dest + addr + x) ^ 0xFFFFFFFF))
+          {
+            const Pixel c1 = *(src + x);
+            if (c1 & 0xffffff)
+            {
+              const Pixel c2 = *(dest + addr + x);
+              *(dest + addr + x) = AddBlend(c1, c2);
+            }
+          }
+        }
 			}
 			else 
 			{

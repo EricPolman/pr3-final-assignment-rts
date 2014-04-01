@@ -26,6 +26,7 @@ public:
 	~Tank();
 	void Fire( unsigned int party, float2& pos, float2& dir );
 	void Tick(unsigned int id);
+
 	float2 pos, speed, target;
 	float maxspeed;
 	int flags, reloading;

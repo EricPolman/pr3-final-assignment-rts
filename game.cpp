@@ -131,9 +131,9 @@ void Tank::Tick(unsigned int id)
     return smoke.Tick();
   }
 
-  // Complexity: O(n*k) (tanks*mountains)
   float2 force = Normalize(target - pos);
 
+  // Complexity: O(n*k) (tanks*mountains)
   // evade mountain peaks
   for (unsigned int i = 0; i < 16; i++)
   {
@@ -145,6 +145,9 @@ void Tank::Tick(unsigned int id)
   // evade other tanks
   force += pushForces[id];
 
+  // High-Level: O(n), it's ok
+  // Low-Level: Not really expensive, but has a normalize.
+  // SIMD: Nope.
   // evade user dragged line
   if ((flags & P1) && (game->m_LButton))
   {
@@ -155,16 +158,14 @@ void Tank::Tick(unsigned int id)
     if (fabs(dist) < 10) if (dist > 0) force += 20 * N; else force -= 20 * N;
   }
   // update speed using accumulated force
-  speed += force, speed = Normalize(speed), pos += speed * maxspeed * 0.5f;
+  float2 dir;
+  speed += force, speed = dir = Normalize(speed), pos += speed * (maxspeed * 0.5f);
 
   // shoot, if reloading completed
   if (--reloading >= 0) return;
 
-  unsigned int start = 0, end = MAXP1;
+ /* unsigned int start = 0, end = MAXP1;
   if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
-
-  // Complexity is O(n^2)
-  // Calculate max offsets towards player.
 
   for (unsigned int i = start; i < end; i++)
   {
@@ -176,6 +177,44 @@ void Tank::Tick(unsigned int id)
         Fire(flags & (P1 | P2), pos, speed); // shoot
         reloading = 200; // and wait before next shot is ready
         break;
+      }
+    }
+  }
+  */
+  // Omgsorevolutionarystuffz
+  // Calculate possible endpoint on grid
+  dir *= 100;
+  dir += pos;
+  int2 iendpos((int)dir.x / 32, (int)dir.y / 32);
+  int2 ibegpos = tankGridPos[id];
+  
+  // Clamp points
+  ibegpos.x = MIN(MAX(ibegpos.x, 0), 31);
+  ibegpos.y = MIN(MAX(ibegpos.y, 0), 23);
+  iendpos.x = MIN(MAX(iendpos.x, 0), 31);
+  iendpos.y = MIN(MAX(iendpos.y, 0), 23);
+  // Calculate offset
+  const int begGtEndX = ibegpos.x > iendpos.x ? -1 : 1;
+  const int begGtEndY = ibegpos.y > iendpos.y ? -1 : 1;
+
+  // Check all tiles in between
+  for (unsigned int y = ibegpos.y; y != iendpos.y; y += begGtEndY)
+  {
+    for (unsigned int x = ibegpos.x; x != iendpos.x; x += begGtEndX)
+    {
+      for (unsigned int i = 0; i < idTankGrid[y][x]; i++)
+      {
+        if (tankGrid[y][x][i]->flags & ACTIVE 
+          && tankGrid[y][x][i]->flags & ((flags & Tank::P1) ? Tank::P2 : Tank::P1))
+        {
+          float2 d = tankGrid[y][x][i]->pos - pos;
+          if ((Length(d) < 100) && (Dot(Normalize(d), speed) > 0.99999f))
+          {
+            Fire(flags & (P1 | P2), pos, speed); // shoot
+            reloading = 200; // and wait before next shot is ready
+            return;
+          }
+        }
       }
     }
   }

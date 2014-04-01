@@ -29,7 +29,7 @@ public:
 
 	float2 pos, speed, target;
 	float maxspeed;
-	int flags, reloading;
+	int flags, reloading, arrayIndex;
 	Smoke smoke;
 };
 

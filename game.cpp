@@ -74,31 +74,36 @@ void Bullet::Tick()
   float2 prevpos = pos;
   pos += 1.5f * speed, prevpos -= pos - prevpos;
 
-  // Drawing bullet
-  game->m_Surface->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
-
   // Screen culling
   if ((pos.x < 0) || (pos.x >(SCRWIDTH - 1)) || (pos.y < 0) || (pos.y >(SCRHEIGHT - 1)))
+  {
     flags = 0; // off-screen
+    return;
+  }
+
+  // Drawing bullet
+  game->m_Surface->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
 
   // Determine opponents to check
   unsigned int start = 0, end = MAXP1;
   if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
 
-  // Distance checking?
-  for (unsigned int i = start; i < end; i++) // check all opponents
+  const int2 currentTile((int)pos.x / 32, (int)pos.y / 32);
+  for (unsigned int i = 0; i < idTankGrid[currentTile.y][currentTile.x]; i++)
   {
-    Tank* t = game->m_Tank[i];
+    Tank* t = tankGrid[currentTile.y][currentTile.x][i];
 
-    if (!((t->flags & Tank::ACTIVE) &&
-      (pos.x >(t->pos.x - 2)) && (pos.y > (t->pos.y - 2)) &&
-      (pos.x < (t->pos.x + 2)) && (pos.y < (t->pos.y + 2))))
-      continue;
+    if (t->flags & (Tank::ACTIVE | ((flags & Bullet::P1) ? Tank::P2 : Tank::P1)))
+    {
+      if ((pos.x >(t->pos.x - 2)) && (pos.y > (t->pos.y - 2)) &&
+        (pos.x < (t->pos.x + 2)) && (pos.y < (t->pos.y + 2)))
+        continue;
 
-    if (t->flags & Tank::P1) aliveP1--; else aliveP2--; // update counters
-    t->flags &= Tank::P1 | Tank::P2;	// kill tank
-    flags = 0;						// destroy bullet
-    break;
+      if (t->flags & Tank::P1) aliveP1--; else aliveP2--; // update counters
+      t->flags &= Tank::P1 | Tank::P2;	// kill tank
+      flags = 0;						// destroy bullet
+      break;
+    }
   }
 }
 
@@ -159,6 +164,8 @@ void Tank::Tick(unsigned int id)
   if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
 
   // Complexity is O(n^2)
+  // Calculate max offsets towards player.
+
   for (unsigned int i = start; i < end; i++)
   {
     if (game->m_Tank[i]->flags & ACTIVE)
@@ -201,7 +208,6 @@ void Game::Init()
     t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P1, t->maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
   }
   // create red tanks
-#pragma 
   for (unsigned int i = 0; i < MAXP2; i++)
   {
     Tank* t = m_Tank[i + MAXP1] = new Tank();
@@ -252,10 +258,6 @@ void Game::DrawTanks()
   glowTimings += timer.Interval();
   ++glowCount;
 
-  char glowTimingsStr[128];
-  sprintf(glowTimingsStr, "- Glow: %03i", glowTimings / glowCount);
-  m_Surface->Print(glowTimingsStr, 20, 70, 0xffff00);
-
   timer.Start();
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
   {
@@ -283,6 +285,11 @@ void Game::DrawTanks()
   }
   timer.Stop();
   restTimings += timer.Interval();
+
+  char glowTimingsStr[128];
+  sprintf(glowTimingsStr, "- Glow: %03i", glowTimings / glowCount);
+  m_Surface->Print(glowTimingsStr, 20, 70, 0xffff00);
+
   char drawTimingsStr[128];
   sprintf(drawTimingsStr, "- The rest: %03i", restTimings / glowCount);
   m_Surface->Print(drawTimingsStr, 20, 80, 0xffff00);

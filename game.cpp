@@ -586,7 +586,7 @@ void Game::UpdateTanks()
     }
     if (ipos.x > -1)
     {
-      // Right grid tile
+      // Left grid tile
       for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x - 1]; j++)
       {
         float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->pos;
@@ -606,8 +606,8 @@ void Game::UpdateTanks()
           pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
         }
       }
-      // Bottom-Right grid tile
-      if (ipos.y < 24)
+      // Bottom-Left grid tile
+      /*if (ipos.y < 24)
       {
         for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x-1]; j++)
         {
@@ -628,7 +628,7 @@ void Game::UpdateTanks()
             pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
           }
         }
-      }
+      }*/
     }
     if (ipos.x < 32)
     {

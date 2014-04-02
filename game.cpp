@@ -18,6 +18,7 @@ static float peaky[16] = { 199, 223, 83, 374, 694, 639, 469, 368, 545, 145, 63, 
 static float peakh[16] = { 200, 150, 160, 255, 200, 255, 200, 300, 120, 100, 80, 80, 80, 160, 160, 160 };
 
 // player, bullet and smoke data
+float2 Tank::targetP1, Tank::targetP2;
 
 float2 pushForces[MAXP1 + MAXP2];
 
@@ -27,6 +28,8 @@ int2 tankGridPos[MAXP1 + MAXP2];
 int2 tankIpos[MAXP1 + MAXP2];
 
 int tileFlags[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
+
+Smoke* smoke[MAXP1 + MAXP2];
 
 static int aliveP1 = MAXP1, aliveP2 = MAXP2;
 static Bullet bullet[MAXBULLET];
@@ -129,7 +132,7 @@ void Bullet::Tick()
 
       if (t->flags & Tank::P1) aliveP1--; else aliveP2--; // update counters
       t->flags &= Tank::P1 | Tank::P2;	// kill tank
-      t->smoke->xpos = tankIpos[t->arrayIndex].x, t->smoke->ypos = tankIpos[t->arrayIndex].y;
+      smoke[t->arrayIndex]->xpos = tankIpos[t->arrayIndex].x, smoke[t->arrayIndex]->ypos = tankIpos[t->arrayIndex].y;
       flags = 0;						// destroy bullet
       break;
     }
@@ -155,10 +158,10 @@ void Tank::Tick(unsigned int id)
 {
   if (!(flags & ACTIVE)) // dead tank
   {
-    return smoke->Tick();
+    return smoke[id]->Tick();
   }
   
-  float2 force = Normalize(target - pos);
+  float2 force = Normalize(((flags & Tank::P1) ? targetP1 : targetP2) - pos);
   
   /*if (tankGridPos[id].x < -1 || tankGridPos[id].x > 33 ||
     tankGridPos[id].y < -1 || tankGridPos[id].y > 25) // in-screen check.
@@ -281,24 +284,24 @@ void Game::Init()
   m_PXSprite = new Sprite(new Surface("testdata/deadtank.tga"), 1, Sprite::BLACKFLARE);
   m_Smoke = new Sprite(new Surface("testdata/smoke.tga"), 10, Sprite::FLARE);
   // create blue tanks
+  Tank::targetP1 = float2(SCRWIDTH / 2, SCRHEIGHT / 2); 
+  Tank::targetP2 = float2(SCRWIDTH / 2, SCRHEIGHT / 2); // move to player base
   for (unsigned int i = 0; i < MAXP1; i++)
   {
     Tank& t = m_Tank[i];// = new Tank();
     t.pos = float2((float)((i % 16) * 20), (float)((i / 16) * 20));
-    t.target = float2(SCRWIDTH/2, SCRHEIGHT/2); // initially move to bottom right corner
     t.speed = float2(0, 0), t.flags = Tank::ACTIVE | Tank::P1, t.maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
     t.arrayIndex = i;
-    t.smoke = new Smoke();
+    smoke[t.arrayIndex] = new Smoke();
   }
   // create red tanks
   for (unsigned int i = 0; i < MAXP2; i++)
   {
     Tank& t = m_Tank[i + MAXP1];// = new Tank();
     t.pos = float2((float)((i % 32) * 20 + 700), (float)((i / 32) * 20));
-    t.target = float2(SCRWIDTH / 2, SCRHEIGHT / 2); // move to player base
     t.speed = float2(0, 0), t.flags = Tank::ACTIVE | Tank::P2, t.maxspeed = 0.3f;
     t.arrayIndex = MAXP1 + i;
-    t.smoke = new Smoke();
+    smoke[t.arrayIndex] = new Smoke();
   }
   game = this; // for global reference
   m_LButton = m_PrevButton = false;
@@ -423,7 +426,7 @@ void Game::PlayerInput()
   else
   {
     if ((m_PrevButton) && (m_DFrames < 150)) // new target location
-    for (unsigned int i = 0; i < MAXP1; i++) m_Tank[i].target = float2((float)m_MouseX, (float)m_MouseY);
+    Tank::targetP1 = float2((float)m_MouseX, (float)m_MouseY);
     m_Surface->Line(0, (float)m_MouseY, SCRWIDTH - 1, (float)m_MouseY, 0xffffff);
     m_Surface->Line((float)m_MouseX, 0, (float)m_MouseX, SCRHEIGHT - 1, 0xffffff);
   }
@@ -555,9 +558,9 @@ float Q_rsqrt(float number)
 void Game::UpdateTanks()
 {
   // Clear array
-  memset(pushForces, 0, sizeof(float2)* (MAXP1 + MAXP2));
-  memset(idTankGrid, 0, sizeof(unsigned int)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2)));
-  memset(tileFlags, 0, sizeof(int)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2)));
+  memset(pushForces, 0, sizeof(pushForces));
+  memset(idTankGrid, 0, sizeof(idTankGrid));
+  memset(tileFlags, 0, sizeof(tileFlags));
   
   //memset(tankGrid, 0, sizeof(Tank*)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2) * 128));
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)

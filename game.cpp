@@ -5,6 +5,7 @@
 #define TEST_COLLISION
 #define TEST_SMOKE
 #define TEST_AIM_AND_SHOOT
+#define TEST_MOUNTAINS
 
 using namespace Tmpl8;
 
@@ -30,6 +31,11 @@ int tileFlags[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
 static int aliveP1 = MAXP1, aliveP2 = MAXP2;
 static Bullet bullet[MAXBULLET];
 
+#ifdef TEST_MOUNTAINS
+unsigned long long mountainTiming;
+TimerRDTSC mountainTimer;
+unsigned long long mountainCount = 0;
+#endif
 #ifdef TEST_AIM_AND_SHOOT
 unsigned long long aimTiming;
 TimerRDTSC aimTimer;
@@ -154,6 +160,9 @@ void Tank::Tick(unsigned int id)
 
   float2 force = Normalize(target - pos);
 
+#ifdef TEST_MOUNTAINS
+  mountainTimer.Start();
+#endif
   // Complexity: O(n*k) (tanks*mountains)
   // evade mountain peaks
   for (unsigned int i = 0; i < 16; i++)
@@ -162,6 +171,11 @@ void Tank::Tick(unsigned int id)
     float sd = (d.x * d.x + d.y * d.y) * 0.2f;
     if (sd < 1500) force += d * 0.03f * (peakh[i] / sd);
   }
+#ifdef TEST_MOUNTAINS
+  mountainTimer.Stop();
+  mountainTiming += mountainTimer.Interval();
+  ++mountainCount;
+#endif
   //printf("%llu\n", mountainCyclesTimer.Interval());
   // evade other tanks
   force += pushForces[id];
@@ -489,6 +503,11 @@ void Game::Tick(float a_DT)
   sprintf(aimstr, "Aim and shoot: %0llu", aimTiming / aimCount);
   game->m_Surface->Print(aimstr, 10, 110, 0xffff00);
 #endif
+#ifdef TEST_MOUNTAINS
+  char mtstr[128];
+  sprintf(mtstr, "Mountain push: %0llu", mountainTiming / mountainCount);
+  game->m_Surface->Print(mtstr, 10, 120, 0xffff00);
+#endif
 
   char buffer[128];
   if ((aliveP1 > 0) && (aliveP2 > 0))
@@ -549,18 +568,20 @@ void Game::UpdateTanks()
         continue;
 
       float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x][j]->pos;
-      float len = Length(d);
-      if (len < 8)
+      float len = Dot(d, d);// Length(d);
+      if (len < 8 * 8)
       {
-        auto dnorm = Normalize(d);
-        pushForces[i] += dnorm * 2.0f;
-        pushForces[tankGrid[1 + ipos.y][1 + ipos.x][j]->arrayIndex] -= dnorm * 2.0f;
+        len = 1 / sqrtf(len);// Inv. sqrt
+        auto dnorm = d * len * 2.0f;
+        pushForces[i] += dnorm;
+        pushForces[tankGrid[1 + ipos.y][1 + ipos.x][j]->arrayIndex] -= dnorm;
       }
-      else if (len < 16)
+      else if (len < 16 * 16)
       {
-        auto dnorm = Normalize(d);
-        pushForces[i] += dnorm * 0.4f;
-        pushForces[tankGrid[1 + ipos.y][1 + ipos.x][j]->arrayIndex] -= dnorm * 0.4f;
+        len = 1 / sqrtf(len);// Inv. sqrt
+        auto dnorm = d * len * 0.4f;
+        pushForces[i] += dnorm;
+        pushForces[tankGrid[1 + ipos.y][1 + ipos.x][j]->arrayIndex] -= dnorm;
       }
     }
     if (ipos.x > -1)
@@ -569,18 +590,20 @@ void Game::UpdateTanks()
       for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x - 1]; j++)
       {
         float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->pos;
-        float len = Length(d);
-        if (len < 8)
+        float len = Dot(d,d);
+        if (len < 8 * 8)
         {
-          auto dnorm = Normalize(d);
-          pushForces[i] += dnorm * 2.0f;
-          pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm * 2.0f;
+          len = 1 / sqrtf(len);// Inv. sqrt
+          auto dnorm = d * len * 2.0f;
+          pushForces[i] += dnorm;
+          pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
         }
-        else if (len < 16)
+        else if (len < 16 * 16)
         {
-          auto dnorm = Normalize(d);
-          pushForces[i] += dnorm * 0.4f;
-          pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm * 0.4f;
+          len = 1 / sqrtf(len);// Inv. sqrt
+          auto dnorm = d * len * 0.4f;
+          pushForces[i] += dnorm;
+          pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
         }
       }
       // Bottom-Right grid tile
@@ -589,18 +612,20 @@ void Game::UpdateTanks()
         for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x-1]; j++)
         {
           float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x-1][j]->pos;
-          float len = Length(d);
-          if (len < 8)
+          float len = Dot(d,d);
+          if (len < 8 * 8)
           {
-            auto dnorm = Normalize(d);
-            pushForces[i] += dnorm * 2.0f;
-            pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm * 2.0f;
+            len = 1 / sqrtf(len);// Inv. sqrt
+            auto dnorm = d * len * 2.0f;
+            pushForces[i] += dnorm;
+            pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
           }
-          else if (len < 16)
+          else if (len < 16 * 16)
           {
-            auto dnorm = Normalize(d);
-            pushForces[i] += dnorm * 0.4f;
-            pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm * 0.4f;
+            len = 1 / sqrtf(len);// Inv. sqrt
+            auto dnorm = d * len * 0.4f;
+            pushForces[i] += dnorm;
+            pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
           }
         }
       }
@@ -611,18 +636,20 @@ void Game::UpdateTanks()
       for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x + 1]; j++)
       {
         float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->pos;
-        float len = Length(d);
-        if (len < 8)
+        float len = Dot(d,d);
+        if (len < 8 * 8)
         {
-          auto dnorm = Normalize(d);
-          pushForces[i] += dnorm * 2.0f;
-          pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm * 2.0f;
+          len = 1 / sqrtf(len);// Inv. sqrt
+          auto dnorm = d * len * 2.0f;
+          pushForces[i] += dnorm;
+          pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
         }
-        else if (len < 16)
+        else if (len < 16 * 16)
         {
-          auto dnorm = Normalize(d);
-          pushForces[i] += dnorm * 0.4f;
-          pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm * 0.4f;
+          len = 1 / sqrtf(len);// Inv. sqrt
+          auto dnorm = d * len * 0.4f;
+          pushForces[i] += dnorm;
+          pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
         }
       }
       // Bottom-Right grid tile
@@ -631,18 +658,20 @@ void Game::UpdateTanks()
         for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x + 1]; j++)
         {
           float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->pos;
-          float len = Length(d);
-          if (len < 8)
+          float len = Dot(d,d);
+          if (len < 8 * 8)
           {
-            auto dnorm = Normalize(d);
-            pushForces[i] += dnorm * 2.0f;
-            pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm * 2.0f;
+            len = 1 / sqrtf(len);// Inv. sqrt
+            auto dnorm = d * len * 2.0f;
+            pushForces[i] += dnorm;
+            pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
           }
-          else if (len < 16)
+          else if (len < 16 * 16)
           {
-            auto dnorm = Normalize(d);
-            pushForces[i] += dnorm * 0.4f;
-            pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm * 0.4f;
+            len = 1 / sqrtf(len);// Inv. sqrt
+            auto dnorm = d * len * 0.4f;
+            pushForces[i] += dnorm;
+            pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
           }
         }
       }
@@ -653,18 +682,20 @@ void Game::UpdateTanks()
       for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x]; j++)
       {
         float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->pos;
-        float len = Length(d);
-        if (len < 8)
+        float len = Dot(d,d);
+        if (len < 8 * 8)
         {
-          auto dnorm = Normalize(d);
-          pushForces[i] += dnorm * 2.0f;
-          pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm * 2.0f;
+          len = 1 / sqrtf(len);// Inv. sqrt
+          auto dnorm = d * len * 2.0f;
+          pushForces[i] += dnorm;
+          pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
         }
-        else if (len < 16)
+        else if (len < 16 * 16)
         {
-          auto dnorm = Normalize(d);
-          pushForces[i] += dnorm * 0.4f;
-          pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm * 0.4f;
+          len = 1 / sqrtf(len);// Inv. sqrt
+          auto dnorm = d * len * 0.4f;
+          pushForces[i] += dnorm;
+          pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
         }
       }
     }
@@ -674,18 +705,20 @@ void Game::UpdateTanks()
       for (int j = 0; j < idTankGrid[1 + ipos.y - 1][1 + ipos.x]; j++)
       {
         float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->pos;
-        float len = Length(d);
-        if (len < 8)
+        float len = Dot(d,d);
+        if (len < 8 * 8)
         {
-          auto dnorm = Normalize(d);
-          pushForces[i] += dnorm * 2.0f;
-          pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm * 2.0f;
+          len = 1 / sqrtf(len);// Inv. sqrt
+          auto dnorm = d * len * 2.0f;
+          pushForces[i] += dnorm;
+          pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
         }
-        else if (len < 16)
+        else if (len < 16 * 16)
         {
-          auto dnorm = Normalize(d);
-          pushForces[i] += dnorm * 0.4f;
-          pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm * 0.4f;
+          len = 1 / sqrtf(len);// Inv. sqrt
+          auto dnorm = d * len * 0.4f;
+          pushForces[i] += dnorm;
+          pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
         }
       }
     }

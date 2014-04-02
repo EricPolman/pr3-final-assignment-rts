@@ -157,9 +157,17 @@ void Tank::Tick(unsigned int id)
   {
     return smoke->Tick();
   }
-
+  
   float2 force = Normalize(target - pos);
-
+  
+  /*if (tankGridPos[id].x < -1 || tankGridPos[id].x > 33 ||
+    tankGridPos[id].y < -1 || tankGridPos[id].y > 25) // in-screen check.
+  {
+    speed = force;
+    pos += speed * (maxspeed * 0.5f);
+    return;
+  }*/
+  
 #ifdef TEST_MOUNTAINS
   mountainTimer.Start();
 #endif
@@ -178,6 +186,7 @@ void Tank::Tick(unsigned int id)
 #endif
   //printf("%llu\n", mountainCyclesTimer.Interval());
   // evade other tanks
+
   force += pushForces[id];
 
   // High-Level: O(n), it's ok
@@ -525,6 +534,23 @@ void Game::Tick(float a_DT)
 
 }
 
+// Stolen from http://en.wikipedia.org/wiki/Fast_inverse_square_root
+float Q_rsqrt(float number)
+{
+  long i;
+  float x2, y;
+  const float threehalfs = 1.5F;
+
+  x2 = number * 0.5F;
+  y = number;
+  i = *(long *)&y;                       // evil floating point bit level hacking
+  i = 0x5f3759df - (i >> 1);               // what the fuck?
+  y = *(float *)&i;
+  y = y * (threehalfs - (x2 * y * y));   // 1st iteration
+  //      y  = y * ( threehalfs - ( x2 * y * y ) );   // 2nd iteration, this can be removed
+
+  return y;
+}
 
 void Game::UpdateTanks()
 {
@@ -571,14 +597,14 @@ void Game::UpdateTanks()
       float len = Dot(d, d);// Length(d);
       if (len < 8 * 8)
       {
-        len = 1 / sqrtf(len);// Inv. sqrt
+        len = Q_rsqrt(len);// Inv. sqrt
         auto dnorm = d * len * 2.0f;
         pushForces[i] += dnorm;
         pushForces[tankGrid[1 + ipos.y][1 + ipos.x][j]->arrayIndex] -= dnorm;
       }
       else if (len < 16 * 16)
       {
-        len = 1 / sqrtf(len);// Inv. sqrt
+        len = Q_rsqrt(len);// Inv. sqrt
         auto dnorm = d * len * 0.4f;
         pushForces[i] += dnorm;
         pushForces[tankGrid[1 + ipos.y][1 + ipos.x][j]->arrayIndex] -= dnorm;
@@ -593,14 +619,14 @@ void Game::UpdateTanks()
         float len = Dot(d,d);
         if (len < 8 * 8)
         {
-          len = 1 / sqrtf(len);// Inv. sqrt
+          len = Q_rsqrt(len);// Inv. sqrt
           auto dnorm = d * len * 2.0f;
           pushForces[i] += dnorm;
           pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
         }
         else if (len < 16 * 16)
         {
-          len = 1 / sqrtf(len);// Inv. sqrt
+          len = Q_rsqrt(len);// Inv. sqrt
           auto dnorm = d * len * 0.4f;
           pushForces[i] += dnorm;
           pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
@@ -615,14 +641,14 @@ void Game::UpdateTanks()
           float len = Dot(d,d);
           if (len < 8 * 8)
           {
-            len = 1 / sqrtf(len);// Inv. sqrt
+            len = Q_rsqrt(len);// Inv. sqrt
             auto dnorm = d * len * 2.0f;
             pushForces[i] += dnorm;
             pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
           }
           else if (len < 16 * 16)
           {
-            len = 1 / sqrtf(len);// Inv. sqrt
+            len = Q_rsqrt(len);// Inv. sqrt
             auto dnorm = d * len * 0.4f;
             pushForces[i] += dnorm;
             pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
@@ -639,14 +665,14 @@ void Game::UpdateTanks()
         float len = Dot(d,d);
         if (len < 8 * 8)
         {
-          len = 1 / sqrtf(len);// Inv. sqrt
+          len = Q_rsqrt(len);// Inv. sqrt
           auto dnorm = d * len * 2.0f;
           pushForces[i] += dnorm;
           pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
         }
         else if (len < 16 * 16)
         {
-          len = 1 / sqrtf(len);// Inv. sqrt
+          len = Q_rsqrt(len);// Inv. sqrt
           auto dnorm = d * len * 0.4f;
           pushForces[i] += dnorm;
           pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
@@ -661,14 +687,14 @@ void Game::UpdateTanks()
           float len = Dot(d,d);
           if (len < 8 * 8)
           {
-            len = 1 / sqrtf(len);// Inv. sqrt
+            len = Q_rsqrt(len);// Inv. sqrt
             auto dnorm = d * len * 2.0f;
             pushForces[i] += dnorm;
             pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
           }
           else if (len < 16 * 16)
           {
-            len = 1 / sqrtf(len);// Inv. sqrt
+            len = Q_rsqrt(len);// Inv. sqrt
             auto dnorm = d * len * 0.4f;
             pushForces[i] += dnorm;
             pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
@@ -685,14 +711,14 @@ void Game::UpdateTanks()
         float len = Dot(d,d);
         if (len < 8 * 8)
         {
-          len = 1 / sqrtf(len);// Inv. sqrt
+          len = Q_rsqrt(len);// Inv. sqrt
           auto dnorm = d * len * 2.0f;
           pushForces[i] += dnorm;
           pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
         }
         else if (len < 16 * 16)
         {
-          len = 1 / sqrtf(len);// Inv. sqrt
+          len = Q_rsqrt(len);// Inv. sqrt
           auto dnorm = d * len * 0.4f;
           pushForces[i] += dnorm;
           pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
@@ -708,14 +734,14 @@ void Game::UpdateTanks()
         float len = Dot(d,d);
         if (len < 8 * 8)
         {
-          len = 1 / sqrtf(len);// Inv. sqrt
+          len = Q_rsqrt(len);// Inv. sqrt
           auto dnorm = d * len * 2.0f;
           pushForces[i] += dnorm;
           pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
         }
         else if (len < 16 * 16)
         {
-          len = 1 / sqrtf(len);// Inv. sqrt
+          len = Q_rsqrt(len);// Inv. sqrt
           auto dnorm = d * len * 0.4f;
           pushForces[i] += dnorm;
           pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm;

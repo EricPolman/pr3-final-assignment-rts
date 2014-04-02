@@ -105,6 +105,10 @@ void Bullet::Tick()
   }
   // Determine opponents to check
   const int2 currentTile((int)pos.x >> 5, (int)pos.y >> 5);
+
+  if (!(tileFlags[1 + currentTile.y][1 + currentTile.x] & ((flags & Tank::P1) ? Tank::P2 : Tank::P1)))
+    return;
+
   for (unsigned int i = 0; i < idTankGrid[1+currentTile.y][1+currentTile.x]; i++)
   {
     Tank* t = tankGrid[1 + currentTile.y][1 + currentTile.x][i];

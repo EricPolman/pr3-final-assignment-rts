@@ -64,3 +64,6 @@ More
 Tanks ** to Tanks *
 Save opponent start variable
 Fix mouse lag
+
+Fix visual glitch
+Fix border gathering (expand borders by 1 on each side)

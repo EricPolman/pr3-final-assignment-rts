@@ -18,8 +18,8 @@ static Bullet bullet[MAXBULLET];
 
 float2 pushForces[MAXP1 + MAXP2];
 
-Tank* tankGrid[SCRHEIGHT / 32][SCRWIDTH / 32][128];
-unsigned int idTankGrid[SCRHEIGHT / 32][SCRWIDTH / 32];
+Tank* tankGrid[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2][128];
+unsigned int idTankGrid[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
 int2 tankGridPos[MAXP1 + MAXP2];
 
 unsigned long long smokeTiming;
@@ -34,7 +34,7 @@ void Smoke::Tick()
   if (frame < 64)
   {
     //if frame % 8 == 0, use p as index. if frame is 56, statement is true and p==7
-    if (!(frame++ & 7)) //Clamp frame to range of 8 puffs, check if 0, increment value anyway
+    if (!(frame++ & 7)) // keep position 
       puff[p].x = xpos,
       puff[p].y = ypos << 8,
       puff[p].vy = -450,
@@ -85,9 +85,9 @@ void Bullet::Tick()
   }
   // Determine opponents to check
   const int2 currentTile((int)pos.x / 32, (int)pos.y / 32);
-  for (unsigned int i = 0; i < idTankGrid[currentTile.y][currentTile.x]; i++)
+  for (unsigned int i = 0; i < idTankGrid[1+currentTile.y][1+currentTile.x]; i++)
   {
-    Tank* t = tankGrid[currentTile.y][currentTile.x][i];
+    Tank* t = tankGrid[1 + currentTile.y][1 + currentTile.x][i];
 
     if (t->flags & (Tank::ACTIVE) && t->flags & ((flags & Bullet::P1) ? Tank::P2 : Tank::P1))
     {
@@ -179,12 +179,12 @@ void Tank::Tick(unsigned int id)
   {
     for (unsigned int x = ibegpos.x; x != iendpos.x; x += begGtEndX)
     {
-      for (unsigned int i = 0; i < idTankGrid[y][x]; i++)
+      for (unsigned int i = 0; i < idTankGrid[1 + y][1 + x]; i++)
       {
-        if (tankGrid[y][x][i]->flags & ACTIVE 
-          && tankGrid[y][x][i]->flags & ((flags & Tank::P1) ? Tank::P2 : Tank::P1))
+        if (tankGrid[1 + y][1 + x][i]->flags & ACTIVE
+          && tankGrid[1 + y][1 + x][i]->flags & ((flags & Tank::P1) ? Tank::P2 : Tank::P1))
         {
-          float2 d = tankGrid[y][x][i]->pos - pos;
+          float2 d = tankGrid[1 + y][1 + x][i]->pos - pos;
           if ((Length(d) < 100) && (Dot(Normalize(d), speed) > 0.99999f))
           {
             Fire(flags & (P1 | P2), pos, speed); // shoot
@@ -228,7 +228,7 @@ void Game::Init()
   for (unsigned int i = 0; i < MAXP2; i++)
   {
     Tank* t = m_Tank[i + MAXP1] = new Tank();
-    t->pos = float2((float)((i % 16) * 20 + 700), (float)((i / 16) * 20));
+    t->pos = float2((float)((i % 32) * 20 + 700), (float)((i / 32) * 20));
     t->target = float2(SCRWIDTH / 2, SCRHEIGHT / 2); // move to player base
     t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P2, t->maxspeed = 0.3f;
     t->arrayIndex = MAXP1 + i;
@@ -421,8 +421,8 @@ void Game::UpdateTanks()
 {
   // Clear array
   memset(pushForces, 0, sizeof(float2)* (MAXP1 + MAXP2));
-  memset(idTankGrid, 0, sizeof(unsigned int)* (SCRWIDTH / 32 * SCRHEIGHT / 32));
-  memset(tankGrid, 0, sizeof(Tank*)* (SCRWIDTH / 32 * SCRHEIGHT / 32 * 128));
+  memset(idTankGrid, 0, sizeof(unsigned int)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2)));
+  memset(tankGrid, 0, sizeof(Tank*)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2) * 128));
 
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
   {
@@ -431,8 +431,8 @@ void Game::UpdateTanks()
     ipos.x /= 32;
     ipos.y /= 32;
 
-    if (ipos.x >= 0 && ipos.x < 32 && ipos.y >= 0 && ipos.y < 24)
-      tankGrid[ipos.y][ipos.x][idTankGrid[ipos.y][ipos.x]++] = game->m_Tank[i];
+    if (ipos.x >= -1 && ipos.x < 33 && ipos.y >= -1 && ipos.y < 25)
+      tankGrid[1 + ipos.y][1 + ipos.x][idTankGrid[1 + ipos.y][1 + ipos.x]++] = game->m_Tank[i];
   }
 
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
@@ -441,93 +441,157 @@ void Game::UpdateTanks()
       continue;
 
     const int2& ipos = tankGridPos[i];
-    if (ipos.x < 0 || ipos.x > 31 || ipos.y < 0 || ipos.y > 23)
+    if (ipos.x < -1 || ipos.x > 32 || ipos.y < -1 || ipos.y > 24)
       continue;
 
     // Current grid tile
-    for (int j = 0; j < idTankGrid[ipos.y][ipos.x]; j++)
+    for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x]; j++)
     {
-      if (m_Tank[i] == tankGrid[ipos.y][ipos.x][j])
+      if (m_Tank[i] == tankGrid[1 + ipos.y][1 + ipos.x][j])
         continue;
 
-      float2 d = m_Tank[i]->pos - tankGrid[ipos.y][ipos.x][j]->pos;
+      float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y][1 + ipos.x][j]->pos;
       float len = Length(d);
       if (len < 8)
       {
         auto dnorm = Normalize(d);
         pushForces[i] += dnorm * 2.0f;
-        pushForces[tankGrid[ipos.y][ipos.x][j]->arrayIndex] -= dnorm * 2.0f;
+        pushForces[tankGrid[1 + ipos.y][1 + ipos.x][j]->arrayIndex] -= dnorm * 2.0f;
       }
       else if (len < 16)
       {
         auto dnorm = Normalize(d);
         pushForces[i] += dnorm * 0.4f;
-        pushForces[tankGrid[ipos.y][ipos.x][j]->arrayIndex] -= dnorm * 0.4f;
+        pushForces[tankGrid[1 + ipos.y][1 + ipos.x][j]->arrayIndex] -= dnorm * 0.4f;
       }
     }
-    if (ipos.x < 31)
+    if (ipos.x > -1)
     {
       // Right grid tile
-      for (int j = 0; j < idTankGrid[ipos.y][ipos.x + 1]; j++)
+      for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x - 1]; j++)
       {
-        float2 d = m_Tank[i]->pos - tankGrid[ipos.y][ipos.x + 1][j]->pos;
+        float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->pos;
         float len = Length(d);
         if (len < 8)
         {
           auto dnorm = Normalize(d);
           pushForces[i] += dnorm * 2.0f;
-          pushForces[tankGrid[ipos.y][ipos.x + 1][j]->arrayIndex] -= dnorm * 2.0f;
+          pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm * 2.0f;
         }
         else if (len < 16)
         {
           auto dnorm = Normalize(d);
           pushForces[i] += dnorm * 0.4f;
-          pushForces[tankGrid[ipos.y][ipos.x + 1][j]->arrayIndex] -= dnorm * 0.4f;
+          pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm * 0.4f;
         }
       }
       // Bottom-Right grid tile
-      if (ipos.y < 23)
+      if (ipos.y < 24)
       {
-        for (int j = 0; j < idTankGrid[ipos.y + 1][ipos.x+1]; j++)
+        for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x-1]; j++)
         {
-          float2 d = m_Tank[i]->pos - tankGrid[ipos.y + 1][ipos.x+1][j]->pos;
+          float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y + 1][1 + ipos.x-1][j]->pos;
           float len = Length(d);
           if (len < 8)
           {
             auto dnorm = Normalize(d);
             pushForces[i] += dnorm * 2.0f;
-            pushForces[tankGrid[ipos.y+1][ipos.x + 1][j]->arrayIndex] -= dnorm * 2.0f;
+            pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm * 2.0f;
           }
           else if (len < 16)
           {
             auto dnorm = Normalize(d);
             pushForces[i] += dnorm * 0.4f;
-            pushForces[tankGrid[ipos.y+1][ipos.x + 1][j]->arrayIndex] -= dnorm * 0.4f;
+            pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm * 0.4f;
           }
         }
       }
     }
-    // Bottom grid tile
-    if (ipos.y < 23)
+    if (ipos.x < 32)
     {
-      for (int j = 0; j < idTankGrid[ipos.y + 1][ipos.x]; j++)
+      // Right grid tile
+      for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x + 1]; j++)
       {
-        float2 d = m_Tank[i]->pos - tankGrid[ipos.y + 1][ipos.x][j]->pos;
+        float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->pos;
         float len = Length(d);
         if (len < 8)
         {
           auto dnorm = Normalize(d);
           pushForces[i] += dnorm * 2.0f;
-          pushForces[tankGrid[ipos.y+1][ipos.x][j]->arrayIndex] -= dnorm * 2.0f;
+          pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm * 2.0f;
         }
         else if (len < 16)
         {
           auto dnorm = Normalize(d);
           pushForces[i] += dnorm * 0.4f;
-          pushForces[tankGrid[ipos.y+1][ipos.x][j]->arrayIndex] -= dnorm * 0.4f;
+          pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm * 0.4f;
+        }
+      }
+      // Bottom-Right grid tile
+      if (ipos.y < 24)
+      {
+        for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x + 1]; j++)
+        {
+          float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->pos;
+          float len = Length(d);
+          if (len < 8)
+          {
+            auto dnorm = Normalize(d);
+            pushForces[i] += dnorm * 2.0f;
+            pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm * 2.0f;
+          }
+          else if (len < 16)
+          {
+            auto dnorm = Normalize(d);
+            pushForces[i] += dnorm * 0.4f;
+            pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm * 0.4f;
+          }
         }
       }
     }
+    // Bottom grid tile
+    if (ipos.y < 24)
+    {
+      for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x]; j++)
+      {
+        float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->pos;
+        float len = Length(d);
+        if (len < 8)
+        {
+          auto dnorm = Normalize(d);
+          pushForces[i] += dnorm * 2.0f;
+          pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm * 2.0f;
+        }
+        else if (len < 16)
+        {
+          auto dnorm = Normalize(d);
+          pushForces[i] += dnorm * 0.4f;
+          pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm * 0.4f;
+        }
+      }
+    }
+    // Bottom grid tile
+    if (ipos.y > -1)
+    {
+      for (int j = 0; j < idTankGrid[1 + ipos.y - 1][1 + ipos.x]; j++)
+      {
+        float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->pos;
+        float len = Length(d);
+        if (len < 8)
+        {
+          auto dnorm = Normalize(d);
+          pushForces[i] += dnorm * 2.0f;
+          pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm * 2.0f;
+        }
+        else if (len < 16)
+        {
+          auto dnorm = Normalize(d);
+          pushForces[i] += dnorm * 0.4f;
+          pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm * 0.4f;
+        }
+      }
+    }
+
   }
 
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)

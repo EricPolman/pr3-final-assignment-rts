@@ -2,6 +2,10 @@
 #include "game.h"
 #include "surface.h"
 
+#define TEST_COLLISION
+#define TEST_SMOKE
+#define TEST_AIM_AND_SHOOT
+
 using namespace Tmpl8;
 
 // global data (source scope)
@@ -13,22 +17,35 @@ static float peaky[16] = { 199, 223, 83, 374, 694, 639, 469, 368, 545, 145, 63, 
 static float peakh[16] = { 200, 150, 160, 255, 200, 255, 200, 300, 120, 100, 80, 80, 80, 160, 160, 160 };
 
 // player, bullet and smoke data
-static int aliveP1 = MAXP1, aliveP2 = MAXP2;
-static Bullet bullet[MAXBULLET];
 
 float2 pushForces[MAXP1 + MAXP2];
 
 Tank* tankGrid[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2][128];
 unsigned int idTankGrid[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
 int2 tankGridPos[MAXP1 + MAXP2];
+int2 tankIpos[MAXP1 + MAXP2];
 
+int tileFlags[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
+
+static int aliveP1 = MAXP1, aliveP2 = MAXP2;
+static Bullet bullet[MAXBULLET];
+
+#ifdef TEST_AIM_AND_SHOOT
+unsigned long long aimTiming;
+TimerRDTSC aimTimer;
+unsigned long long aimCount = 0;
+#endif
+#ifdef TEST_SMOKE
 unsigned long long smokeTiming;
 TimerRDTSC smokeTimer;
 unsigned long long smokeCount = 0;
+#endif
 // smoke particle effect tick function
 void Smoke::Tick()
 {
+#ifdef TEST_SMOKE
   smokeTimer.Start();
+#endif
   //frame is member of Smoke
   unsigned int p = frame >> 3; // Frame divided by 8
   if (frame < 64)
@@ -58,9 +75,12 @@ void Smoke::Tick()
         puff[i].life = 63;
     }
   }
+
+#ifdef TEST_SMOKE
   smokeTimer.Stop();
   smokeTiming += smokeTimer.Interval();
   ++smokeCount;
+#endif
 }
 
 // bullet Tick function
@@ -84,19 +104,22 @@ void Bullet::Tick()
     return;
   }
   // Determine opponents to check
-  const int2 currentTile((int)pos.x / 32, (int)pos.y / 32);
+  const int2 currentTile((int)pos.x >> 5, (int)pos.y >> 5);
   for (unsigned int i = 0; i < idTankGrid[1+currentTile.y][1+currentTile.x]; i++)
   {
     Tank* t = tankGrid[1 + currentTile.y][1 + currentTile.x][i];
+    const int2& tIpos = tankIpos[t->arrayIndex];
+    const int2& ipos = *((int2*)&(pos));
 
     if (t->flags & (Tank::ACTIVE) && t->flags & ((flags & Bullet::P1) ? Tank::P2 : Tank::P1))
     {
-      if ((pos.x >(t->pos.x - 2)) && (pos.y > (t->pos.y - 2)) &&
-        (pos.x < (t->pos.x + 2)) && (pos.y < (t->pos.y + 2)))
+      if ((ipos.x >(tIpos.x - 2)) && (ipos.y > (tIpos.y - 2)) &&
+        (ipos.x < (tIpos.x + 2)) && (ipos.y < (tIpos.y + 2)))
         continue;
 
       if (t->flags & Tank::P1) aliveP1--; else aliveP2--; // update counters
       t->flags &= Tank::P1 | Tank::P2;	// kill tank
+      t->smoke->xpos = tankIpos[t->arrayIndex].x, t->smoke->ypos = tankIpos[t->arrayIndex].y;
       flags = 0;						// destroy bullet
       break;
     }
@@ -122,7 +145,6 @@ void Tank::Tick(unsigned int id)
 {
   if (!(flags & ACTIVE)) // dead tank
   {
-    smoke->xpos = (int)pos.x, smoke->ypos = (int)pos.y;
     return smoke->Tick();
   }
 
@@ -156,13 +178,18 @@ void Tank::Tick(unsigned int id)
   float2 dir;
   speed += force, speed = dir = Normalize(speed), pos += speed * (maxspeed * 0.5f);
 
+  tankIpos[id] = int2((int)pos.x, (int)pos.y);
+
   // shoot, if reloading completed
   if (--reloading >= 0) return;
 
+#ifdef TEST_AIM_AND_SHOOT
+  aimTimer.Start();
+#endif
   // Calculate possible endpoint on grid
   dir *= 100;
   dir += pos;
-  int2 iendpos((int)dir.x / 32, (int)dir.y / 32);
+  int2 iendpos((int)dir.x >> 5, (int)dir.y >> 5);
   int2 ibegpos = tankGridPos[id];
   
   // Clamp points
@@ -179,6 +206,9 @@ void Tank::Tick(unsigned int id)
   {
     for (unsigned int x = ibegpos.x; x != iendpos.x; x += begGtEndX)
     {
+      if (!(tileFlags[1 + y][1 + x] & ((flags & Tank::P1) ? Tank::P2 : Tank::P1)))
+        continue;
+
       for (unsigned int i = 0; i < idTankGrid[1 + y][1 + x]; i++)
       {
         if (tankGrid[1 + y][1 + x][i]->flags & ACTIVE
@@ -187,7 +217,7 @@ void Tank::Tick(unsigned int id)
           float2 d = tankGrid[1 + y][1 + x][i]->pos - pos;
           if ((Length(d) < 100) && (Dot(Normalize(d), speed) > 0.99999f))
           {
-            Fire(flags & (P1 | P2), pos, speed); // shoot
+            Fire(flags & (P1 | P2), pos, speed); // shoot TODO TODO
             reloading = 200; // and wait before next shot is ready
             return;
           }
@@ -195,12 +225,18 @@ void Tank::Tick(unsigned int id)
       }
     }
   }
+#ifdef TEST_AIM_AND_SHOOT
+  aimTimer.Stop();
+  aimTiming += aimTimer.Interval();
+  ++aimCount;
+#endif
 }
 
 int2 glowArrayBounds[40];
 // Game::Init - Load data, setup playfield
 void Game::Init()
 {
+  printf("%i\n", sizeof(Tank));
   m_Heights = new Surface("testdata/heightmap.png"), m_Backdrop = new Surface("testdata/backdrop.png"), m_Grid = new Surface(1024, 768);
   Pixel* a1 = m_Grid->GetBuffer(), *a2 = m_Backdrop->GetBuffer(), *a3 = m_Heights->GetBuffer();
   for (int y = 0; y < 768; y++) for (int idx = y * 1024, x = 0; x < 1024; x++, idx++) a1[idx] = (((x & 31) == 0) | ((y & 31) == 0)) ? 0x6600 : 0;
@@ -273,34 +309,36 @@ void Game::DrawTanks()
   static TimerRDTSC timer;
 
   timer.Start();
-  // High-Level: Glow per 
+  // High-Level: Glow per tank, not per pixel on screen
   // Low-Level: Precalculated & Get Out Early
   for (unsigned int i = 0; i < MAXP1; i++)
   {
-    if (!(m_Tank[i]->flags & Tank::ACTIVE)) continue;
-
-    int yMin = m_Tank[i]->pos.y - 20;
-    int yMax = yMin + 40;
-    int yMinOffset = yMin;
-    yMin = MAX(yMin, 0);
-    yMax = MIN(yMax, SCRHEIGHT);
-
-    int xMin = m_Tank[i]->pos.x - 20;
-    int xMax = xMin + 40;
-    int xMinOffset = xMin;
-    xMin = MAX(xMin, 0);
-    xMax = MIN(xMax, SCRWIDTH);
-
-    for (int y = yMin; y < yMax; y++)
+    if (m_Tank[i]->flags & Tank::ACTIVE)
     {
-      const int2& pair = glowArrayBounds[y - yMinOffset];
-      int max = xMax;
-      if (xMinOffset + pair.y < max)
-        max = xMinOffset + pair.y;
+      //Fixed 4 conversions here by adding tankIpos
+      int yMin = tankIpos[i].y - 20;
+      int yMax = yMin + 40;
+      int yMinOffset = yMin;
+      yMin = MAX(yMin, 0);
+      yMax = MIN(yMax, SCRHEIGHT);
 
-      for (int x = xMin + pair.x; x < max; x++)
+      int xMin = tankIpos[i].x - 20;
+      int xMax = xMin + 40;
+      int xMinOffset = xMin;
+      xMin = MAX(xMin, 0);
+      xMax = MIN(xMax, SCRWIDTH);
+
+      for (int y = yMin; y < yMax; y++)
       {
-        m_Surface->GetBuffer()[x + y * SCRWIDTH] |= 0x660000;
+        const int2& pair = glowArrayBounds[y - yMinOffset];
+        int max = xMax;
+        if (xMinOffset + pair.y < max)
+          max = xMinOffset + pair.y;
+
+        for (int x = xMin + pair.x; x < max; x++)
+        {
+          m_Surface->GetBuffer()[x + (y << 10)] |= 0x660000;
+        }
       }
     }
   }
@@ -313,25 +351,25 @@ void Game::DrawTanks()
   {
     Tank* t = m_Tank[i];
     float x = t->pos.x, y = t->pos.y;
-    float2 p1(x + 70 * t->speed.x + 22 * t->speed.y, y + 70 * t->speed.y - 22 * t->speed.x);
-    float2 p2(x + 70 * t->speed.x - 22 * t->speed.y, y + 70 * t->speed.y + 22 * t->speed.x);
+    const int2& ipos = tankIpos[i];
+
     if (!(m_Tank[i]->flags & Tank::ACTIVE))
-      m_PXSprite->Draw((int)x - 4, (int)y - 4, m_Surface); // draw dead tank
+      m_PXSprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface); // draw dead tank
     else if (t->flags & Tank::P1) // draw blue tank
     {
-      m_P1Sprite->Draw((int)x - 4, (int)y - 4, m_Surface);
+      m_P1Sprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface);
       m_Surface->Line(x, y, x + 8 * t->speed.x, y + 8 * t->speed.y, 0x4444ff);
     }
     else // draw red tank
     {
-      m_P2Sprite->Draw((int)x - 4, (int)y - 4, m_Surface);
+      m_P2Sprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface);
       m_Surface->Line(x, y, x + 8 * t->speed.x, y + 8 * t->speed.y, 0xff4444);
     }
 
     // Drawing tracks if in screen. 
     if ((x >= 0) && (x < SCRWIDTH) && (y >= 0) && (y < SCRHEIGHT))
-      m_Backdrop->GetBuffer()[(int)x + (int)y * SCRWIDTH] =
-      SubBlend(m_Backdrop->GetBuffer()[(int)x + (int)y * SCRWIDTH], 0x030303); // tracks
+      m_Backdrop->GetBuffer()[ipos.x + ipos.y * SCRWIDTH] =
+      SubBlend(m_Backdrop->GetBuffer()[ipos.x + ipos.y * SCRWIDTH], 0x030303); // tracks
   }
   timer.Stop();
   restTimings += timer.Interval();
@@ -366,13 +404,16 @@ void Game::PlayerInput()
 
 //Tank* tankGrid[SCRWIDTH / 32][SCRHEIGHT / 32][128];
 //unsigned int idTankGrid[SCRWIDTH / 32][SCRHEIGHT / 32];
-unsigned long long utTiming = 0;
-unsigned long long blTiming = 0;
-unsigned long long dtTiming = 0;
 unsigned long long utTimingPrev = 0;
 unsigned long long blTimingPrev = 0;
 unsigned long long dtTimingPrev = 0;
 unsigned long long timingCount = 0;
+
+#ifdef TEST_COLLISION
+TimerRDTSC collisionTimer;
+unsigned long long collisionTime;
+unsigned long long colCount; 
+#endif
 // Game::Tick - main game loop
 void Game::Tick(float a_DT)
 {
@@ -385,29 +426,27 @@ void Game::Tick(float a_DT)
   TimerRDTSC timer;
 
   // Drawing backdrop
-  m_Backdrop->CopyTo(m_Surface, 0, 0);
+  memcpy(m_Surface->GetBuffer(), m_Backdrop->GetBuffer(), sizeof(Pixel)* SCRWIDTH * SCRHEIGHT);
+  //m_Backdrop->CopyTo(m_Surface, 0, 0);
 
   // Update tanks
   timer.Start();
   UpdateTanks();
   timer.Stop();
-  utTimingPrev += utTiming;
-  utTiming = timer.Interval();
+  utTimingPrev += timer.Interval();
 
   // Update bullets
   timer.Start();
   for (unsigned int i = 0; i < MAXBULLET; i++)
     bullet[i].Tick();
   timer.Stop();
-  blTimingPrev += blTiming;
-  blTiming = timer.Interval();
+   blTimingPrev += timer.Interval();
 
   // Draw tanks
   timer.Start();
   DrawTanks();
   timer.Stop();
-  dtTimingPrev += dtTiming;
-  dtTiming = timer.Interval();
+  dtTimingPrev += timer.Interval();
 
   PlayerInput();
 
@@ -426,12 +465,25 @@ void Game::Tick(float a_DT)
   sprintf(dtTimingsStr, "Draw Tanks: %03i", dtTimingPrev / timingCount);
   m_Surface->Print(dtTimingsStr, 10, 60, 0xffff00);
 
+#ifdef TEST_SMOKE
   if (smokeCount > 0)
   {
     char smokeTimingstr[128];
     sprintf(smokeTimingstr, "Smoke::Tick(): %03i", smokeTiming / smokeCount);
     game->m_Surface->Print(smokeTimingstr, 10, 90, 0xffff00);
   }
+#endif
+
+#ifdef TEST_COLLISION
+  char tankColstr[128];
+  sprintf(tankColstr, "Tank-Tank Col.: %0llu", collisionTime / ++colCount);
+  game->m_Surface->Print(tankColstr, 10, 100, 0xffff00);
+#endif
+#ifdef TEST_AIM_AND_SHOOT
+  char aimstr[128];
+  sprintf(aimstr, "Aim and shoot: %0llu", aimTiming / aimCount);
+  game->m_Surface->Print(aimstr, 10, 110, 0xffff00);
+#endif
 
   char buffer[128];
   if ((aliveP1 > 0) && (aliveP2 > 0))
@@ -446,6 +498,7 @@ void Game::Tick(float a_DT)
   }
   sprintf(buffer, "nice, you win! blue left: %i", aliveP1);
   m_Surface->Print(buffer, 200, 370, 0xffff00);
+
 }
 
 
@@ -454,18 +507,26 @@ void Game::UpdateTanks()
   // Clear array
   memset(pushForces, 0, sizeof(float2)* (MAXP1 + MAXP2));
   memset(idTankGrid, 0, sizeof(unsigned int)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2)));
-  memset(tankGrid, 0, sizeof(Tank*)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2) * 128));
-
+  memset(tileFlags, 0, sizeof(int)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2)));
+  
+  //memset(tankGrid, 0, sizeof(Tank*)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2) * 128));
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
   {
     tankGridPos[i] = int2(m_Tank[i]->pos.x, m_Tank[i]->pos.y);
     int2& ipos = tankGridPos[i];
-    ipos.x /= 32;
-    ipos.y /= 32;
+    ipos.x >>= 5;
+    ipos.y >>= 5;
 
     if (ipos.x >= -1 && ipos.x < 33 && ipos.y >= -1 && ipos.y < 25)
+    {
       tankGrid[1 + ipos.y][1 + ipos.x][idTankGrid[1 + ipos.y][1 + ipos.x]++] = game->m_Tank[i];
+      tileFlags[1 + ipos.y][1 + ipos.x] |= game->m_Tank[i]->flags;
+    }
   }
+
+#ifdef TEST_COLLISION
+  collisionTimer.Start();
+#endif
 
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
   {
@@ -624,7 +685,10 @@ void Game::UpdateTanks()
       }
     }
   }
-
+#ifdef TEST_COLLISION
+  collisionTimer.Stop();
+  collisionTime += collisionTimer.Interval();
+#endif
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
     m_Tank[i]->Tick(i);
 }

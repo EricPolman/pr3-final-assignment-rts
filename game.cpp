@@ -623,7 +623,6 @@ void Game::UpdateTanks()
         }
       }
     }
-
   }
 
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)

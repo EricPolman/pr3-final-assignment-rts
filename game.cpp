@@ -122,8 +122,8 @@ void Tank::Tick(unsigned int id)
 {
   if (!(flags & ACTIVE)) // dead tank
   {
-    smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
-    return smoke.Tick();
+    smoke->xpos = (int)pos.x, smoke->ypos = (int)pos.y;
+    return smoke->Tick();
   }
 
   float2 force = Normalize(target - pos);
@@ -197,6 +197,7 @@ void Tank::Tick(unsigned int id)
   }
 }
 
+int2 glowArrayBounds[40];
 // Game::Init - Load data, setup playfield
 void Game::Init()
 {
@@ -223,6 +224,7 @@ void Game::Init()
     t->target = float2(SCRWIDTH/2, SCRHEIGHT/2); // initially move to bottom right corner
     t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P1, t->maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
     t->arrayIndex = i;
+    t->smoke = new Smoke();
   }
   // create red tanks
   for (unsigned int i = 0; i < MAXP2; i++)
@@ -232,9 +234,34 @@ void Game::Init()
     t->target = float2(SCRWIDTH / 2, SCRHEIGHT / 2); // move to player base
     t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P2, t->maxspeed = 0.3f;
     t->arrayIndex = MAXP1 + i;
+    t->smoke = new Smoke();
   }
   game = this; // for global reference
   m_LButton = m_PrevButton = false;
+  
+  for (int y = 0; y < 40; y++)
+  {
+    bool firstInRange = false;
+    glowArrayBounds[y].y = 40;
+    for (int x = 0; x < 40; x++)
+    {
+      float dist = (x - 20) * (x - 20) + (y - 20) * (y - 20);
+
+      if (dist <= 400) // Sqdst of 20
+      {
+        if (!firstInRange)
+        {
+          glowArrayBounds[y].x = x;
+          firstInRange = true;
+        }
+      }
+      else if (firstInRange)
+      {
+        glowArrayBounds[y].y = x;
+        break;
+      }
+    }
+  }
 }
 
 // Game::DrawTanks - draw the tanks
@@ -246,29 +273,34 @@ void Game::DrawTanks()
   static TimerRDTSC timer;
 
   timer.Start();
+  // High-Level: Glow per 
+  // Low-Level: Precalculated & Get Out Early
   for (unsigned int i = 0; i < MAXP1; i++)
   {
     if (!(m_Tank[i]->flags & Tank::ACTIVE)) continue;
 
-    int xMin = m_Tank[i]->pos.x - 20;
     int yMin = m_Tank[i]->pos.y - 20;
-    int xMax = xMin + 40;
     int yMax = yMin + 40;
-    xMin = MAX(xMin, 0);
+    int yMinOffset = yMin;
     yMin = MAX(yMin, 0);
-    xMax = MIN(xMax, SCRWIDTH);
     yMax = MIN(yMax, SCRHEIGHT);
+
+    int xMin = m_Tank[i]->pos.x - 20;
+    int xMax = xMin + 40;
+    int xMinOffset = xMin;
+    xMin = MAX(xMin, 0);
+    xMax = MIN(xMax, SCRWIDTH);
 
     for (int y = yMin; y < yMax; y++)
     {
-      for (int x = xMin; x < xMax; x++)
-      {
-        float dx = m_Tank[i]->pos.x - x;
-        float dy = m_Tank[i]->pos.y - y;
-        float dist = dx * dx + dy * dy;
+      const int2& pair = glowArrayBounds[y - yMinOffset];
+      int max = xMax;
+      if (xMinOffset + pair.y < max)
+        max = xMinOffset + pair.y;
 
-        if (dist < 400.f) // Sqdst of 20
-          m_Surface->GetBuffer()[x + y * SCRWIDTH] |= 0x660000;
+      for (int x = xMin + pair.x; x < max; x++)
+      {
+        m_Surface->GetBuffer()[x + y * SCRWIDTH] |= 0x660000;
       }
     }
   }

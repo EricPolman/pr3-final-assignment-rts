@@ -206,6 +206,7 @@ void Tank::Tick(unsigned int id)
   {
     for (unsigned int x = ibegpos.x; x != iendpos.x; x += begGtEndX)
     {
+      // If no enemy is present, leave.
       if (!(tileFlags[1 + y][1 + x] & ((flags & Tank::P1) ? Tank::P2 : Tank::P1)))
         continue;
 
@@ -247,7 +248,7 @@ void Game::Init()
     int u = max(0, min(1023, (int)(x - dx * h))), v = max(0, min(767, (int)(y - dy * h))), r = (int)Rand(255);
     a2[idx] = AddBlend(a1[u + v * 1024], ScaleColor(ScaleColor(0x33aa11, r) + ScaleColor(0xffff00, (255 - r)), (int)(max(0, dot) * 80.0f) + 10));
   }
-  m_Tank = new Tank*[MAXP1 + MAXP2];
+  m_Tank = new Tank[MAXP1 + MAXP2];
   m_P1Sprite = new Sprite(new Surface("testdata/p1tank.tga"), 1, Sprite::FLARE);
   m_P2Sprite = new Sprite(new Surface("testdata/p2tank.tga"), 1, Sprite::FLARE);
   m_PXSprite = new Sprite(new Surface("testdata/deadtank.tga"), 1, Sprite::BLACKFLARE);
@@ -255,22 +256,22 @@ void Game::Init()
   // create blue tanks
   for (unsigned int i = 0; i < MAXP1; i++)
   {
-    Tank* t = m_Tank[i] = new Tank();
-    t->pos = float2((float)((i % 16) * 20), (float)((i / 16) * 20));
-    t->target = float2(SCRWIDTH/2, SCRHEIGHT/2); // initially move to bottom right corner
-    t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P1, t->maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
-    t->arrayIndex = i;
-    t->smoke = new Smoke();
+    Tank& t = m_Tank[i];// = new Tank();
+    t.pos = float2((float)((i % 16) * 20), (float)((i / 16) * 20));
+    t.target = float2(SCRWIDTH/2, SCRHEIGHT/2); // initially move to bottom right corner
+    t.speed = float2(0, 0), t.flags = Tank::ACTIVE | Tank::P1, t.maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
+    t.arrayIndex = i;
+    t.smoke = new Smoke();
   }
   // create red tanks
   for (unsigned int i = 0; i < MAXP2; i++)
   {
-    Tank* t = m_Tank[i + MAXP1] = new Tank();
-    t->pos = float2((float)((i % 32) * 20 + 700), (float)((i / 32) * 20));
-    t->target = float2(SCRWIDTH / 2, SCRHEIGHT / 2); // move to player base
-    t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P2, t->maxspeed = 0.3f;
-    t->arrayIndex = MAXP1 + i;
-    t->smoke = new Smoke();
+    Tank& t = m_Tank[i + MAXP1];// = new Tank();
+    t.pos = float2((float)((i % 32) * 20 + 700), (float)((i / 32) * 20));
+    t.target = float2(SCRWIDTH / 2, SCRHEIGHT / 2); // move to player base
+    t.speed = float2(0, 0), t.flags = Tank::ACTIVE | Tank::P2, t.maxspeed = 0.3f;
+    t.arrayIndex = MAXP1 + i;
+    t.smoke = new Smoke();
   }
   game = this; // for global reference
   m_LButton = m_PrevButton = false;
@@ -313,7 +314,7 @@ void Game::DrawTanks()
   // Low-Level: Precalculated & Get Out Early
   for (unsigned int i = 0; i < MAXP1; i++)
   {
-    if (m_Tank[i]->flags & Tank::ACTIVE)
+    if (m_Tank[i].flags & Tank::ACTIVE)
     {
       //Fixed 4 conversions here by adding tankIpos
       int yMin = tankIpos[i].y - 20;
@@ -349,21 +350,21 @@ void Game::DrawTanks()
   timer.Start();
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
   {
-    Tank* t = m_Tank[i];
-    float x = t->pos.x, y = t->pos.y;
+    Tank& t = m_Tank[i];
+    float x = t.pos.x, y = t.pos.y;
     const int2& ipos = tankIpos[i];
 
-    if (!(m_Tank[i]->flags & Tank::ACTIVE))
+    if (!(m_Tank[i].flags & Tank::ACTIVE))
       m_PXSprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface); // draw dead tank
-    else if (t->flags & Tank::P1) // draw blue tank
+    else if (t.flags & Tank::P1) // draw blue tank
     {
       m_P1Sprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface);
-      m_Surface->Line(x, y, x + 8 * t->speed.x, y + 8 * t->speed.y, 0x4444ff);
+      m_Surface->Line(x, y, x + 8 * t.speed.x, y + 8 * t.speed.y, 0x4444ff);
     }
     else // draw red tank
     {
       m_P2Sprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface);
-      m_Surface->Line(x, y, x + 8 * t->speed.x, y + 8 * t->speed.y, 0xff4444);
+      m_Surface->Line(x, y, x + 8 * t.speed.x, y + 8 * t.speed.y, 0xff4444);
     }
 
     // Drawing tracks if in screen. 
@@ -395,7 +396,7 @@ void Game::PlayerInput()
   else
   {
     if ((m_PrevButton) && (m_DFrames < 150)) // new target location
-    for (unsigned int i = 0; i < MAXP1; i++) m_Tank[i]->target = float2((float)m_MouseX, (float)m_MouseY);
+    for (unsigned int i = 0; i < MAXP1; i++) m_Tank[i].target = float2((float)m_MouseX, (float)m_MouseY);
     m_Surface->Line(0, (float)m_MouseY, SCRWIDTH - 1, (float)m_MouseY, 0xffffff);
     m_Surface->Line((float)m_MouseX, 0, (float)m_MouseX, SCRHEIGHT - 1, 0xffffff);
   }
@@ -512,15 +513,15 @@ void Game::UpdateTanks()
   //memset(tankGrid, 0, sizeof(Tank*)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2) * 128));
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
   {
-    tankGridPos[i] = int2(m_Tank[i]->pos.x, m_Tank[i]->pos.y);
+    tankGridPos[i] = int2(m_Tank[i].pos.x, m_Tank[i].pos.y);
     int2& ipos = tankGridPos[i];
     ipos.x >>= 5;
     ipos.y >>= 5;
 
     if (ipos.x >= -1 && ipos.x < 33 && ipos.y >= -1 && ipos.y < 25)
     {
-      tankGrid[1 + ipos.y][1 + ipos.x][idTankGrid[1 + ipos.y][1 + ipos.x]++] = game->m_Tank[i];
-      tileFlags[1 + ipos.y][1 + ipos.x] |= game->m_Tank[i]->flags;
+      tankGrid[1 + ipos.y][1 + ipos.x][idTankGrid[1 + ipos.y][1 + ipos.x]++] = &game->m_Tank[i];
+      tileFlags[1 + ipos.y][1 + ipos.x] |= game->m_Tank[i].flags;
     }
   }
 
@@ -530,7 +531,7 @@ void Game::UpdateTanks()
 
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
   {
-    if (!(m_Tank[i]->flags & Tank::ACTIVE))
+    if (!(m_Tank[i].flags & Tank::ACTIVE))
       continue;
 
     const int2& ipos = tankGridPos[i];
@@ -540,10 +541,10 @@ void Game::UpdateTanks()
     // Current grid tile
     for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x]; j++)
     {
-      if (m_Tank[i] == tankGrid[1 + ipos.y][1 + ipos.x][j])
+      if (&m_Tank[i] == tankGrid[1 + ipos.y][1 + ipos.x][j])
         continue;
 
-      float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y][1 + ipos.x][j]->pos;
+      float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x][j]->pos;
       float len = Length(d);
       if (len < 8)
       {
@@ -563,7 +564,7 @@ void Game::UpdateTanks()
       // Right grid tile
       for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x - 1]; j++)
       {
-        float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->pos;
+        float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->pos;
         float len = Length(d);
         if (len < 8)
         {
@@ -583,7 +584,7 @@ void Game::UpdateTanks()
       {
         for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x-1]; j++)
         {
-          float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y + 1][1 + ipos.x-1][j]->pos;
+          float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x-1][j]->pos;
           float len = Length(d);
           if (len < 8)
           {
@@ -605,7 +606,7 @@ void Game::UpdateTanks()
       // Right grid tile
       for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x + 1]; j++)
       {
-        float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->pos;
+        float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->pos;
         float len = Length(d);
         if (len < 8)
         {
@@ -625,7 +626,7 @@ void Game::UpdateTanks()
       {
         for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x + 1]; j++)
         {
-          float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->pos;
+          float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->pos;
           float len = Length(d);
           if (len < 8)
           {
@@ -647,7 +648,7 @@ void Game::UpdateTanks()
     {
       for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x]; j++)
       {
-        float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->pos;
+        float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->pos;
         float len = Length(d);
         if (len < 8)
         {
@@ -668,7 +669,7 @@ void Game::UpdateTanks()
     {
       for (int j = 0; j < idTankGrid[1 + ipos.y - 1][1 + ipos.x]; j++)
       {
-        float2 d = m_Tank[i]->pos - tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->pos;
+        float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->pos;
         float len = Length(d);
         if (len < 8)
         {
@@ -690,5 +691,5 @@ void Game::UpdateTanks()
   collisionTime += collisionTimer.Interval();
 #endif
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
-    m_Tank[i]->Tick(i);
+    m_Tank[i].Tick(i);
 }

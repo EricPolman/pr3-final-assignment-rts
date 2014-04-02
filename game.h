@@ -63,7 +63,7 @@ public:
 	int m_ActiveP1, m_ActiveP2;
 	int m_MouseX, m_MouseY, m_DStartX, m_DStartY, m_DFrames;
 	bool m_LButton, m_PrevButton;
-	Tank** m_Tank;
+	Tank* m_Tank;
 };
 
 }; // namespace Templ8

@@ -117,8 +117,8 @@ private:
 	Pixel* m_Buffer;	
 	int m_Width, m_Height, m_Pitch;	
 	// Static attributes for the buildin font
-	char s_Font[51][5][5];	
-	int s_Transl[256];		
+	static char s_Font[51][5][5];	
+	static int s_Transl[256];		
 };
 
 class Sprite

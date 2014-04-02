@@ -9,6 +9,9 @@ namespace Tmpl8 {
 
 void NotifyUser( char* s );
 
+char Surface::s_Font[51][5][5];
+int Surface::s_Transl[256];
+
 // -----------------------------------------------------------
 // True-color surface class implementation
 // -----------------------------------------------------------
@@ -357,8 +360,8 @@ Sprite::Sprite( Surface* a_Surface, unsigned int a_NumFrames ) :
 }
 
 Sprite::Sprite( Surface* a_Surface, unsigned int a_NumFrames, unsigned int a_Flags ) :
-	m_Width(  a_Surface->GetWidth() / a_NumFrames ),
-	m_Height( a_Surface->GetHeight() ),
+	m_Width(  a_Surface->GetWidth() ),
+  m_Height(a_Surface->GetHeight() / a_NumFrames),
 	m_Pitch(  a_Surface->GetWidth() ),
 	m_NumFrames( a_NumFrames ),
 	m_CurrentFrame( 0 ),
@@ -383,7 +386,7 @@ void Sprite::Draw( int a_X, int a_Y, Surface* a_Target )
 	if ((a_Y < -m_Height) || (a_Y > (a_Target->GetHeight() + m_Height))) return;
 	int x1 = a_X, x2 = a_X + m_Width;
 	int y1 = a_Y, y2 = a_Y + m_Height;
-	Pixel* src = GetBuffer() + m_CurrentFrame * m_Width;
+	Pixel* src = GetBuffer() + m_CurrentFrame * m_Width * 24;
 	if (x1 < 0)
 	{
 		src += -x1;

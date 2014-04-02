@@ -74,6 +74,7 @@ void Bullet::Tick()
   float2 prevpos = pos;
   pos += 1.5f * speed, prevpos -= pos - prevpos;
 
+  // Drawing bullet
   game->m_Surface->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
 
   // Screen culling
@@ -82,10 +83,7 @@ void Bullet::Tick()
     flags = 0; // off-screen
     return;
   }
-  // Drawing bullet
-
   // Determine opponents to check
-
   const int2 currentTile((int)pos.x / 32, (int)pos.y / 32);
   for (unsigned int i = 0; i < idTankGrid[currentTile.y][currentTile.x]; i++)
   {
@@ -125,7 +123,6 @@ void Tank::Tick(unsigned int id)
   if (!(flags & ACTIVE)) // dead tank
   {
     smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
-    // Really inefficient
     return smoke.Tick();
   }
 
@@ -162,24 +159,6 @@ void Tank::Tick(unsigned int id)
   // shoot, if reloading completed
   if (--reloading >= 0) return;
 
- /* unsigned int start = 0, end = MAXP1;
-  if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
-
-  for (unsigned int i = start; i < end; i++)
-  {
-    if (game->m_Tank[i]->flags & ACTIVE)
-    {
-      float2 d = game->m_Tank[i]->pos - pos;
-      if ((Length(d) < 100) && (Dot(Normalize(d), speed) > 0.99999f))
-      {
-        Fire(flags & (P1 | P2), pos, speed); // shoot
-        reloading = 200; // and wait before next shot is ready
-        break;
-      }
-    }
-  }
-  */
-  // Omgsorevolutionarystuffz
   // Calculate possible endpoint on grid
   dir *= 100;
   dir += pos;
@@ -240,8 +219,8 @@ void Game::Init()
   for (unsigned int i = 0; i < MAXP1; i++)
   {
     Tank* t = m_Tank[i] = new Tank();
-    t->pos = float2((float)((i % 5) * 20), (float)((i / 5) * 20 + 50));
-    t->target = float2(SCRWIDTH, SCRHEIGHT); // initially move to bottom right corner
+    t->pos = float2((float)((i % 16) * 20), (float)((i / 16) * 20));
+    t->target = float2(SCRWIDTH/2, SCRHEIGHT/2); // initially move to bottom right corner
     t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P1, t->maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
     t->arrayIndex = i;
   }
@@ -249,10 +228,10 @@ void Game::Init()
   for (unsigned int i = 0; i < MAXP2; i++)
   {
     Tank* t = m_Tank[i + MAXP1] = new Tank();
-    t->pos = float2((float)((i % 12) * 20 + 900), (float)((i / 12) * 20 + 600));
-    t->target = float2(424, 336); // move to player base
+    t->pos = float2((float)((i % 16) * 20 + 700), (float)((i / 16) * 20));
+    t->target = float2(SCRWIDTH / 2, SCRHEIGHT / 2); // move to player base
     t->speed = float2(0, 0), t->flags = Tank::ACTIVE | Tank::P2, t->maxspeed = 0.3f;
-    t->arrayIndex = i;
+    t->arrayIndex = MAXP1 + i;
   }
   game = this; // for global reference
   m_LButton = m_PrevButton = false;

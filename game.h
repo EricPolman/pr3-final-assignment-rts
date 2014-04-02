@@ -3,7 +3,7 @@
 
 namespace Tmpl8 {
 
-#define MAXP1		 (1024)				// increase to test your optimized code
+#define MAXP1		 (256)				// increase to test your optimized code
 #define MAXP2		 (MAXP1 << 2)	// because the player is smarter than the AI
 #define MAXBULLET	200
 
@@ -23,14 +23,14 @@ class Tank
 public:
 	enum { ACTIVE = 1, P1 = 2, P2 = 4 };
 	Tank() : pos( float2( 0, 0 ) ), speed( float2( 0, 0 ) ), target( float2( 0, 0 ) ), reloading( 0 ) {};
-	~Tank();
+  ~Tank(){};
 	void Fire( unsigned int party, float2& pos, float2& dir );
 	void Tick(unsigned int id);
 
 	float2 pos, speed, target;
 	float maxspeed;
 	int flags, reloading, arrayIndex;
-	Smoke smoke;
+	Smoke* smoke;
 };
 
 class Bullet

@@ -268,7 +268,6 @@ int2 glowArrayBounds[40];
 void Game::Init()
 {
   printf("%i\n", sizeof(Tank));
-  printf("%i\n", sizeof(LocalizedSurface));
   m_Heights = new Surface("testdata/heightmap.png"), m_Backdrop = new Surface("testdata/backdrop.png"), m_Grid = new Surface(1024, 768);
   Pixel* a1 = m_Grid->GetBuffer(), *a2 = m_Backdrop->GetBuffer(), *a3 = m_Heights->GetBuffer();
   for (int y = 0; y < 768; y++) for (int idx = y * 1024, x = 0; x < 1024; x++, idx++) a1[idx] = (((x & 31) == 0) | ((y & 31) == 0)) ? 0x6600 : 0;
@@ -330,14 +329,6 @@ void Game::Init()
       }
     }
   }
-  LocalizedSurface::Precalc();
-  LocalizedSurface* locSurf = new LocalizedSurface();
-  static TimerRDTSC copyToLocalizedSurfaceTimer;
-  copyToLocalizedSurfaceTimer.Start();
-  locSurf->CopyFromScreen(m_Backdrop);
-  copyToLocalizedSurfaceTimer.Stop();
-  printf("%llu\n", copyToLocalizedSurfaceTimer.Interval());
-  locSurf->CopyToScreen(m_Surface);
 }
 
 // Game::DrawTanks - draw the tanks
@@ -457,7 +448,7 @@ unsigned long long colCount;
 // Game::Tick - main game loop
 void Game::Tick(float a_DT)
 {
-  /*//printf("%i\n", sizeof(Tank));
+  //printf("%i\n", sizeof(Tank));
   POINT p;
   GetCursorPos(&p);
   ScreenToClient(FindWindow(NULL, "Template"), &p);
@@ -542,7 +533,8 @@ void Game::Tick(float a_DT)
     return m_Surface->Print(buffer, 200, 370, 0xffff00);
   }
   sprintf(buffer, "nice, you win! blue left: %i", aliveP1);
-  m_Surface->Print(buffer, 200, 370, 0xffff00);*/
+  m_Surface->Print(buffer, 200, 370, 0xffff00);
+
 }
 
 // Stolen from http://en.wikipedia.org/wiki/Fast_inverse_square_root

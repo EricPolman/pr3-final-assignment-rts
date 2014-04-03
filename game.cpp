@@ -555,6 +555,29 @@ float Q_rsqrt(float number)
   return y;
 }
 
+void ProcessGridTile(const int a_y, const int a_x, Tank* a_Tank, const int a_currId)
+{
+  for (int j = 0; j < idTankGrid[a_y][a_x]; j++)
+  {
+    const float2 d = a_Tank[a_currId].pos - tankGrid[a_y][a_x][j]->pos;
+    float len = Dot(d, d);
+    if (len < 8 * 8)
+    {
+      len = Q_rsqrt(len);// Inv. sqrt
+      const float2 dnorm = d * len * 2.0f;
+      pushForces[a_currId] += dnorm;
+      pushForces[tankGrid[a_y][a_x][j]->arrayIndex] -= dnorm;
+    }
+    else if (len < 16 * 16)
+    {
+      len = Q_rsqrt(len);// Inv. sqrt
+      const float2 dnorm = d * len * 0.4f;
+      pushForces[a_currId] += dnorm;
+      pushForces[tankGrid[a_y][a_x][j]->arrayIndex] -= dnorm;
+    }
+  }
+}
+
 void Game::UpdateTanks()
 {
   // Clear array
@@ -614,143 +637,24 @@ void Game::UpdateTanks()
       }
     }
     if (ipos.x > -1)
-    {
-      // Left grid tile
-      for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x - 1]; j++)
-      {
-        float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->pos;
-        float len = Dot(d,d);
-        if (len < 8 * 8)
-        {
-          len = Q_rsqrt(len);// Inv. sqrt
-          auto dnorm = d * len * 2.0f;
-          pushForces[i] += dnorm;
-          pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
-        }
-        else if (len < 16 * 16)
-        {
-          len = Q_rsqrt(len);// Inv. sqrt
-          auto dnorm = d * len * 0.4f;
-          pushForces[i] += dnorm;
-          pushForces[tankGrid[1 + ipos.y][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
-        }
-      }
-      // Bottom-Left grid tile
-      /*if (ipos.y < 24)
-      {
-        for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x-1]; j++)
-        {
-          float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x-1][j]->pos;
-          float len = Dot(d,d);
-          if (len < 8 * 8)
-          {
-            len = Q_rsqrt(len);// Inv. sqrt
-            auto dnorm = d * len * 2.0f;
-            pushForces[i] += dnorm;
-            pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
-          }
-          else if (len < 16 * 16)
-          {
-            len = Q_rsqrt(len);// Inv. sqrt
-            auto dnorm = d * len * 0.4f;
-            pushForces[i] += dnorm;
-            pushForces[tankGrid[1 + ipos.y+1][1 + ipos.x - 1][j]->arrayIndex] -= dnorm;
-          }
-        }
-      }*/
-    }
+      ProcessGridTile(ipos.y + 1, ipos.x, m_Tank, i);
+
     if (ipos.x < 32)
     {
       // Right grid tile
-      for (int j = 0; j < idTankGrid[1 + ipos.y][1 + ipos.x + 1]; j++)
-      {
-        float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->pos;
-        float len = Dot(d,d);
-        if (len < 8 * 8)
-        {
-          len = Q_rsqrt(len);// Inv. sqrt
-          auto dnorm = d * len * 2.0f;
-          pushForces[i] += dnorm;
-          pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
-        }
-        else if (len < 16 * 16)
-        {
-          len = Q_rsqrt(len);// Inv. sqrt
-          auto dnorm = d * len * 0.4f;
-          pushForces[i] += dnorm;
-          pushForces[tankGrid[1 + ipos.y][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
-        }
-      }
+      ProcessGridTile(ipos.y + 1, ipos.x + 2, m_Tank, i);
+      
       // Bottom-Right grid tile
       if (ipos.y < 24)
-      {
-        for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x + 1]; j++)
-        {
-          float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->pos;
-          float len = Dot(d,d);
-          if (len < 8 * 8)
-          {
-            len = Q_rsqrt(len);// Inv. sqrt
-            auto dnorm = d * len * 2.0f;
-            pushForces[i] += dnorm;
-            pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
-          }
-          else if (len < 16 * 16)
-          {
-            len = Q_rsqrt(len);// Inv. sqrt
-            auto dnorm = d * len * 0.4f;
-            pushForces[i] += dnorm;
-            pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x + 1][j]->arrayIndex] -= dnorm;
-          }
-        }
-      }
+        ProcessGridTile(ipos.y + 2, ipos.x + 2, m_Tank, i);
     }
     // Bottom grid tile
     if (ipos.y < 24)
-    {
-      for (int j = 0; j < idTankGrid[1 + ipos.y + 1][1 + ipos.x]; j++)
-      {
-        float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->pos;
-        float len = Dot(d,d);
-        if (len < 8 * 8)
-        {
-          len = Q_rsqrt(len);// Inv. sqrt
-          auto dnorm = d * len * 2.0f;
-          pushForces[i] += dnorm;
-          pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
-        }
-        else if (len < 16 * 16)
-        {
-          len = Q_rsqrt(len);// Inv. sqrt
-          auto dnorm = d * len * 0.4f;
-          pushForces[i] += dnorm;
-          pushForces[tankGrid[1 + ipos.y + 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
-        }
-      }
-    }
+      ProcessGridTile(ipos.y + 2, ipos.x + 1, m_Tank, i);
+
     // Bottom grid tile
     if (ipos.y > -1)
-    {
-      for (int j = 0; j < idTankGrid[1 + ipos.y - 1][1 + ipos.x]; j++)
-      {
-        float2 d = m_Tank[i].pos - tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->pos;
-        float len = Dot(d,d);
-        if (len < 8 * 8)
-        {
-          len = Q_rsqrt(len);// Inv. sqrt
-          auto dnorm = d * len * 2.0f;
-          pushForces[i] += dnorm;
-          pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
-        }
-        else if (len < 16 * 16)
-        {
-          len = Q_rsqrt(len);// Inv. sqrt
-          auto dnorm = d * len * 0.4f;
-          pushForces[i] += dnorm;
-          pushForces[tankGrid[1 + ipos.y - 1][1 + ipos.x][j]->arrayIndex] -= dnorm;
-        }
-      }
-    }
+      ProcessGridTile(ipos.y, ipos.x + 1, m_Tank, i);
   }
 #ifdef TEST_COLLISION
   collisionTimer.Stop();

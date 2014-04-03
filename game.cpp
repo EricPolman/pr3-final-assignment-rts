@@ -29,6 +29,8 @@ int2 tankIpos[MAXP1 + MAXP2];
 
 int tileFlags[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
 
+float2 mountainPrecalcs[SCRHEIGHT/2][SCRWIDTH/2];
+
 Smoke* smoke[MAXP1 + MAXP2];
 
 static int aliveP1 = MAXP1, aliveP2 = MAXP2;
@@ -176,12 +178,13 @@ void Tank::Tick(unsigned int id)
 #endif
   // Complexity: O(n*k) (tanks*mountains)
   // evade mountain peaks
-  for (unsigned int i = 0; i < 16; i++)
+  force += mountainPrecalcs[tankIpos[id].y >> 1][tankIpos[id].x >> 1];
+  /*for (unsigned int i = 0; i < 16; i++)
   {
     float2 d(pos.x - peakx[i], pos.y - peaky[i]);
     float sd = (d.x * d.x + d.y * d.y) * 0.2f;
     if (sd < 1500) force += d * 0.03f * (peakh[i] / sd);
-  }
+  }*/
 #ifdef TEST_MOUNTAINS
   mountainTimer.Stop();
   mountainTiming += mountainTimer.Interval();
@@ -326,6 +329,19 @@ void Game::Init()
       {
         glowArrayBounds[y].y = x;
         break;
+      }
+    }
+  }
+
+  for (int y = 0; y < SCRHEIGHT; y+=2)
+  {
+    for (int x = 0; x < SCRWIDTH; x+=2)
+    {
+      for (unsigned int i = 0; i < 16; i++)
+      {
+        float2 d(x - peakx[i], y - peaky[i]);
+        float sd = (d.x * d.x + d.y * d.y) * 0.2f;
+        if (sd < 1500) mountainPrecalcs[y/2][x/2] = d * 0.03f * (peakh[i] / sd);
       }
     }
   }

@@ -182,4 +182,19 @@ private:
 	int* m_Offset, *m_Width, *m_Trans, m_Height, m_CY1, m_CY2;
 };
 
+class LocalizedSurface
+{
+public:
+  //Pixel buffer[4][4][4][4][4][4][4][4][4][4]; // 1024x1024
+  Pixel buffer[1024*1024]; // 1024x1024
+  static unsigned int precalcs[1024];
+  static unsigned int precalcRev[1024];
+
+  static void Precalc();
+  void CopyToScreen(Surface* a_Screen);
+  void DrawOnThis(Sprite* a_Sprite, int a_x, int a_y);
+  void CopyFromScreen(Surface* a_Screen);
+  void Line(float x1, float y1, float x2, float y2, Pixel color);
+};
+
 }; // namespace Tmpl8

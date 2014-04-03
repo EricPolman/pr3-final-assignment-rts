@@ -467,23 +467,23 @@ void Sprite::DrawScaled( int a_X, int a_Y, int a_Width, int a_Height, Surface* a
 
 void Sprite::InitializeStartData()
 {
-    for ( unsigned int f = 0; f < m_NumFrames; ++f )
+  for (unsigned int f = 0; f < m_NumFrames; ++f)
+  {
+    m_Start[f] = new unsigned int[m_Height];
+    for (int y = 0; y < m_Height; ++y)
     {
-        m_Start[f] = new unsigned int[m_Height];
-     	for ( int y = 0; y < m_Height; ++y )
-     	{
-      	    m_Start[f][y] = m_Width;
-			Pixel* addr = GetBuffer() + f * m_Width + y * m_Pitch;
-     	    for ( int x = 0; x < m_Width; ++x )
-     	    {
-                if (addr[x])
-     	        {
-     	            m_Start[f][y] = x;
-                    break;
-                }
-            }
-		}
-	}
+      m_Start[f][y] = m_Width;
+      Pixel* addr = GetBuffer() + f * m_Width + y * m_Pitch;
+      for (int x = 0; x < m_Width; ++x)
+      {
+        if (addr[x])
+        {
+          m_Start[f][y] = x;
+          break;
+        }
+      }
+    }
+  }
 }
 
 Font::Font( char* a_File, char* a_Chars )
@@ -591,5 +591,78 @@ void Font::Print( Surface* a_Target, char* a_Text, int a_X, int a_Y, bool clip )
 		}
 	}
 }
+
+unsigned int LocalizedSurface::precalcs[1024];
+unsigned int LocalizedSurface::precalcRev[1024];
+unsigned int Part1By1(unsigned int x)
+{
+  x &= 0x0000ffff;                  // x = ---- ---- ---- ---- fedc ba98 7654 3210
+  x = (x ^ (x << 8)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
+  x = (x ^ (x << 4)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
+  x = (x ^ (x << 2)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
+  x = (x ^ (x << 1)) & 0x55555555; // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
+  return x;
+}
+unsigned int Compact1By1(unsigned int x)
+{
+  x &= 0x55555555;                  // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
+  x = (x ^ (x >> 1)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
+  x = (x ^ (x >> 2)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
+  x = (x ^ (x >> 4)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
+  x = (x ^ (x >> 8)) & 0x0000ffff; // x = ---- ---- ---- ---- fedc ba98 7654 3210
+  return x;
+}
+
+unsigned int EncodeMorton2(unsigned int x, unsigned int y)
+{
+  return (LocalizedSurface::precalcs[y] << 1) + LocalizedSurface::precalcs[x];
+}
+unsigned int DecodeMorton2(unsigned int x, unsigned int y)
+{
+  return (LocalizedSurface::precalcRev[y] << 1) + LocalizedSurface::precalcRev[x];
+}
+
+void LocalizedSurface::CopyToScreen(Surface* a_Screen)
+{
+  Pixel* dst = a_Screen->GetBuffer();
+  Pixel* src = buffer;
+
+  for (int y = 0; y < SCRHEIGHT; y++)
+  {
+    for (unsigned int x = 0; x < 1024; x++)
+    {
+      unsigned int decodedMorton = EncodeMorton2(x, y);
+      dst[DecodeMorton2(x, y)] = buffer[x + y*SCRWIDTH];
+    }
+  }
+}
+
+void LocalizedSurface::Precalc()
+{
+  for (unsigned int x = 0; x < 1024; x++)
+  {
+    precalcs[x] = Part1By1(x);
+    precalcRev[x] = Compact1By1(x);
+  }
+}
+
+void LocalizedSurface::CopyFromScreen(Surface* a_Screen)
+{
+  Pixel* scrbuffer = a_Screen->GetBuffer();
+  Pixel* ownBuffer = buffer;
+  for (unsigned int y = 0; y < 768; y++)
+  {
+    for (unsigned int x = 0; x < 1024; x++)
+    {
+      unsigned int morton = EncodeMorton2(x, y);
+      ownBuffer[morton] = scrbuffer[y * 1024 + x];
+    }
+  }
+}
+void LocalizedSurface::DrawOnThis(Sprite* a_Sprite, int a_x, int a_y)
+{
+
+}
+
 
 }; // namespace Tmpl8

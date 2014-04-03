@@ -6,6 +6,7 @@
 #define TEST_SMOKE
 #define TEST_AIM_AND_SHOOT
 #define TEST_MOUNTAINS
+#define TEST_DRAW_PER_TANK
 
 using namespace Tmpl8;
 
@@ -428,6 +429,8 @@ void Game::DrawTanks()
   char drawTimingsStr[128];
   sprintf(drawTimingsStr, "- The rest: %03i", restTimings / glowCount);
   m_Surface->Print(drawTimingsStr, 20, 80, 0xffff00);
+  sprintf(drawTimingsStr, "   - per tank: %03i", restTimings / glowCount / (MAXP1 + MAXP2));
+  m_Surface->Print(drawTimingsStr, 20, 90, 0xffff00);
 }
 
 // Game::PlayerInput - handle player input
@@ -517,7 +520,7 @@ void Game::Tick(float a_DT)
   {
     char smokeTimingstr[128];
     sprintf(smokeTimingstr, "Smoke::Tick(): %03i", smokeTiming / smokeCount);
-    game->m_Surface->Print(smokeTimingstr, 10, 90, 0xffff00);
+    game->m_Surface->Print(smokeTimingstr, 10, 130, 0xffff00);
   }
 #endif
 

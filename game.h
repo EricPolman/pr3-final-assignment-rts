@@ -11,10 +11,9 @@ class Smoke
 {
 public:
 	struct Puff { int x, y, vy, life; };
-	Smoke() : active( false ), frame( 0 ) {};
+	Smoke() : frame( 0 ) {};
 	void Tick();
 	Puff puff[8];
-	bool active;
 	int frame, xpos, ypos;
 };
 

@@ -61,7 +61,7 @@ void Smoke::Tick()
   smokeTimer.Start();
 #endif
   //frame is member of Smoke
-  unsigned int p = frame >> 3; // Frame divided by 8
+  const unsigned int p = frame >> 3; // Frame divided by 8
   if (frame < 64)
   {
     //if frame % 8 == 0, use p as index. if frame is 56, statement is true and p==7
@@ -70,12 +70,32 @@ void Smoke::Tick()
       puff[p].y = ypos << 8,
       puff[p].vy = -450,
       puff[p].life = 63;
-  }
 
-  // First draws 8 puffs, then continues to loop 4 puffs (if i % 2 == 1), so p=1, p=3, p=5, and p=7
-  for (unsigned int i = 0; i < p; i++)
+    for (unsigned int i = 0; i < p; i++)
+    {
+      puff[i].x++, puff[i].y += puff[i].vy, puff[i].vy += 3; //Integration of smoke puff
+
+      int animframe = (puff[i].life > 13) ? (9 - (puff[i].life - 14) / 5) : (puff[i].life >> 1);
+      game->m_Smoke->SetFrame(animframe);
+      game->m_Smoke->Draw(puff[i].x - 12, (puff[i].y >> 8) - 12, game->m_Surface);
+      if (!--puff[i].life)  // Decrease life, if hits zero, reset smoke and start again
+        puff[i].x = xpos,
+        puff[i].y = ypos << 8,
+        puff[i].vy = -450,
+        puff[i].life = 63;
+    }
+  }
+  else if (frame == 64)
   {
-    if ((frame < 64) || (i & 1)) // Short-circuiting possible here
+    ++frame;
+    // Put 4 puffs next to eachother in memory.
+    puff[1] = puff[2];
+    puff[2] = puff[4];
+    puff[3] = puff[6];
+  }
+  else
+  {
+    for (unsigned int i = 0; i < 4; i++)
     {
       puff[i].x++, puff[i].y += puff[i].vy, puff[i].vy += 3; //Integration of smoke puff
 
@@ -265,6 +285,7 @@ void Game::Init()
 {
   //printf("%i\n", sizeof(Tank));
   //printf("%i\n", sizeof(Bullet));
+  printf("%i\n", sizeof(Smoke));
   m_Heights = new Surface("testdata/heightmap.png"), m_Backdrop = new Surface("testdata/backdrop.png"), m_Grid = new Surface(1024, 768);
   Pixel* a1 = m_Grid->GetBuffer(), *a2 = m_Backdrop->GetBuffer(), *a3 = m_Heights->GetBuffer();
   for (int y = 0; y < 768; y++) for (int idx = y * 1024, x = 0; x < 1024; x++, idx++) a1[idx] = (((x & 31) == 0) | ((y & 31) == 0)) ? 0x6600 : 0;

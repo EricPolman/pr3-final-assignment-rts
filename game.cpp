@@ -156,6 +156,11 @@ void Tank::Fire(unsigned int party, float2& pos, float2& dir)
 
 
 // Tank::Tick - update single tank
+float mdx1, mdy1;
+float mdx2, mdy2;
+float2 mdx1y1;
+float2 mdN;
+
 TimerRDTSC mountainCyclesTimer;
 void Tank::Tick(unsigned int id)
 {
@@ -166,47 +171,29 @@ void Tank::Tick(unsigned int id)
   
   float2 force = Normalize(((flags & Tank::P1) ? targetP1 : targetP2) - pos);
   
-  /*if (tankGridPos[id].x < -1 || tankGridPos[id].x > 33 ||
-    tankGridPos[id].y < -1 || tankGridPos[id].y > 25) // in-screen check.
-  {
-    speed = force;
-    pos += speed * (maxspeed * 0.5f);
-    return;
-  }*/
-  
 #ifdef TEST_MOUNTAINS
   mountainTimer.Start();
 #endif
-  // Complexity: O(n*k) (tanks*mountains)
   // evade mountain peaks
   force += mountainPrecalcs[tankIpos[id].y >> 1][tankIpos[id].x >> 1];
-  /*for (unsigned int i = 0; i < 16; i++)
-  {
-    float2 d(pos.x - peakx[i], pos.y - peaky[i]);
-    float sd = (d.x * d.x + d.y * d.y) * 0.2f;
-    if (sd < 1500) force += d * 0.03f * (peakh[i] / sd);
-  }*/
 #ifdef TEST_MOUNTAINS
   mountainTimer.Stop();
   mountainTiming += mountainTimer.Interval();
   ++mountainCount;
 #endif
-  //printf("%llu\n", mountainCyclesTimer.Interval());
   // evade other tanks
 
   force += pushForces[id];
 
-  // High-Level: O(n), it's ok
-  // Low-Level: Not really expensive, but has a normalize.
-  // SIMD: Nope.
   // evade user dragged line
   if ((flags & P1) && (game->m_LButton))
   {
-    float x1 = (float)game->m_DStartX, y1 = (float)game->m_DStartY;
-    float x2 = (float)game->m_MouseX, y2 = (float)game->m_MouseY;
-    float2 N = Normalize(float2(y2 - y1, x1 - x2));
-    float dist = Dot(N, pos) - Dot(N, float2(x1, y1));
-    if (fabs(dist) < 10) if (dist > 0) force += 20 * N; else force -= 20 * N;
+    float dist = Dot(mdN, pos) - Dot(mdN, mdx1y1);
+    if (fabsf(dist) < 10)
+    {
+      if (dist > 0) force += 20 * mdN;
+      else force -= 20 * mdN;
+    }
   }
   // update speed using accumulated force
   float2 dir;
@@ -415,9 +402,11 @@ void Game::DrawTanks()
     }
 
     // Drawing tracks if in screen. 
-    if ((x >= 0) && (x < SCRWIDTH) && (y >= 0) && (y < SCRHEIGHT))
+    if ((ipos.x >= 0) && (ipos.x < SCRWIDTH) && (ipos.y >= 0) && (ipos.y < SCRHEIGHT))
+    {
       m_Backdrop->GetBuffer()[ipos.x + ipos.y * SCRWIDTH] =
-      SubBlend(m_Backdrop->GetBuffer()[ipos.x + ipos.y * SCRWIDTH], 0x030303); // tracks
+        SubBlend(m_Backdrop->GetBuffer()[ipos.x + ipos.y * SCRWIDTH], 0x030303); // tracks
+    }
   }
   timer.Stop();
   restTimings += timer.Interval();
@@ -448,6 +437,7 @@ void Game::PlayerInput()
     Tank::targetP1 = float2((float)m_MouseX, (float)m_MouseY);
     m_Surface->Line(0, (float)m_MouseY, SCRWIDTH - 1, (float)m_MouseY, 0xffffff);
     m_Surface->Line((float)m_MouseX, 0, (float)m_MouseX, SCRHEIGHT - 1, 0xffffff);
+    // TODO: Line fixed point
   }
   m_PrevButton = m_LButton;
 }
@@ -481,6 +471,10 @@ void Game::Tick(float a_DT)
 
   // Update tanks
   timer.Start();
+  mdx1 = (float)game->m_DStartX, mdy1 = (float)game->m_DStartY;
+  mdx2 = (float)game->m_MouseX, mdy2 = (float)game->m_MouseY;
+  mdx1y1 = float2(mdx1, mdy1);
+  mdN = Normalize(float2(mdy2 - mdy1, mdx1 - mdx2));
   UpdateTanks();
   timer.Stop();
   utTimingPrev += timer.Interval();
@@ -556,7 +550,7 @@ void Game::Tick(float a_DT)
 
 }
 
-// Stolen from http://en.wikipedia.org/wiki/Fast_inverse_square_root
+// Source: http://en.wikipedia.org/wiki/Fast_inverse_square_root
 float Q_rsqrt(float number)
 {
   long i;
@@ -599,12 +593,11 @@ void ProcessGridTile(const int a_y, const int a_x, Tank* a_Tank, const int a_cur
 
 void Game::UpdateTanks()
 {
-  // Clear array
+  // Clear arrays
   memset(pushForces, 0, sizeof(pushForces));
   memset(idTankGrid, 0, sizeof(idTankGrid));
   memset(tileFlags, 0, sizeof(tileFlags));
   
-  //memset(tankGrid, 0, sizeof(Tank*)* ((SCRWIDTH / 32 + 2) * (SCRHEIGHT / 32 + 2) * 128));
   for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
   {
     tankGridPos[i] = int2(m_Tank[i].pos.x, m_Tank[i].pos.y);

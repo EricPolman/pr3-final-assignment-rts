@@ -145,8 +145,8 @@ void Surface::Line( float x1, float y1, float x2, float y2, Pixel c )
 	float l = fabsf( b );
 	if (fabsf ( h ) > l) l = fabsf( h );
 	int il = (int)l;
-	float dx = b / (float)l;
-	float dy = h / (float)l;
+	float dx = b / l;
+	float dy = h / l;
 	for ( int i = 0; i <= il; i++ )
 	{
 		*(m_Buffer + (int)x1 + (int)y1 * m_Pitch) = c;

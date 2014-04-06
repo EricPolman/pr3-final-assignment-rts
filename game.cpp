@@ -175,7 +175,8 @@ void Tank::Tick(unsigned int id)
   mountainTimer.Start();
 #endif
   // evade mountain peaks
-  force += mountainPrecalcs[tankIpos[id].y >> 1][tankIpos[id].x >> 1];
+  if (!((pos.x < 0) || (pos.x >(SCRWIDTH - 1)) || (pos.y < 0) || (pos.y >(SCRHEIGHT - 1))))
+    force += mountainPrecalcs[tankIpos[id].y >> 1][tankIpos[id].x >> 1];
 #ifdef TEST_MOUNTAINS
   mountainTimer.Stop();
   mountainTiming += mountainTimer.Interval();
@@ -457,7 +458,6 @@ unsigned long long colCount;
 // Game::Tick - main game loop
 void Game::Tick(float a_DT)
 {
-  //printf("%i\n", sizeof(Tank));
   POINT p;
   GetCursorPos(&p);
   ScreenToClient(FindWindow(NULL, "Template"), &p);

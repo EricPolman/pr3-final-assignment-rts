@@ -36,10 +36,10 @@ class Bullet
 {
 public:
 	enum { ACTIVE = 1, P1 = 2, P2 = 4 };
-	Bullet() : flags( 0 ) {};
-	void Tick();
+	Bullet() {};
+	void Tick(int id);
 	float2 pos, speed;
-	int flags;
+	//int flags;
 };
 
 class Surface;

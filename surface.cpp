@@ -385,7 +385,7 @@ void Sprite::Draw( int a_X, int a_Y, Surface* a_Target )
 	if ((a_Y < -m_Height) || (a_Y > (a_Target->GetHeight() + m_Height))) return;
 	int x1 = a_X, x2 = a_X + m_Width;
 	int y1 = a_Y, y2 = a_Y + m_Height;
-  Pixel* src = m_FramePtrs[m_CurrentFrame];// GetBuffer() + m_CurrentFrame * m_Width * 24;
+  Pixel* src = m_FramePtrs[m_CurrentFrame];
 	if (x1 < 0)
 	{
 		src += -x1;

@@ -30,12 +30,14 @@ int2 tankIpos[MAXP1 + MAXP2];
 
 int tileFlags[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
 
-float2 mountainPrecalcs[SCRHEIGHT/2][SCRWIDTH/2];
+float2 mountainPrecalcs[SCRHEIGHT / 2][SCRWIDTH / 2];
+
+_declspec(align(16)) int bulletFlags[MAXBULLET];
+Bullet bullet[MAXBULLET];
 
 Smoke* smoke[MAXP1 + MAXP2];
 
 static int aliveP1 = MAXP1, aliveP2 = MAXP2;
-static Bullet bullet[MAXBULLET];
 
 #ifdef TEST_MOUNTAINS
 unsigned long long mountainTiming;
@@ -96,29 +98,31 @@ void Smoke::Tick()
 }
 
 // bullet Tick function
-void Bullet::Tick()
+void Bullet::Tick(int id)
 {
   // flags == 0? return
-  if (!(flags & Bullet::ACTIVE))
+  if (!(bulletFlags[id] & Bullet::ACTIVE))
     return;
 
   // Integration
   float2 prevpos = pos;
   pos += 1.5f * speed, prevpos -= pos - prevpos;
 
-  // Drawing bullet
-  game->m_Surface->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
-
   // Screen culling
   if ((pos.x < 0) || (pos.x >(SCRWIDTH - 1)) || (pos.y < 0) || (pos.y >(SCRHEIGHT - 1)))
   {
-    flags = 0; // off-screen
+    bulletFlags[id] = 0; // off-screen
     return;
   }
+
+  // Drawing bullet
+  game->m_Surface->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
+
   // Determine opponents to check
   const int2 currentTile((int)pos.x >> 5, (int)pos.y >> 5);
 
-  if (!(tileFlags[1 + currentTile.y][1 + currentTile.x] & ((flags & Tank::P1) ? Tank::P2 : Tank::P1)))
+  //  if no opponents in tile, leave.
+  if (!(tileFlags[1 + currentTile.y][1 + currentTile.x] & ((bulletFlags[id] & Tank::P1) ? Tank::P2 : Tank::P1)))
     return;
 
   for (unsigned int i = 0; i < idTankGrid[1+currentTile.y][1+currentTile.x]; i++)
@@ -127,7 +131,7 @@ void Bullet::Tick()
     const int2& tIpos = tankIpos[t->arrayIndex];
     const int2& ipos = *((int2*)&(pos));
 
-    if (t->flags & (Tank::ACTIVE) && t->flags & ((flags & Bullet::P1) ? Tank::P2 : Tank::P1))
+    if (t->flags & (Tank::ACTIVE) && t->flags & ((bulletFlags[id] & Bullet::P1) ? Tank::P2 : Tank::P1))
     {
       if ((ipos.x >(tIpos.x - 2)) && (ipos.y > (tIpos.y - 2)) &&
         (ipos.x < (tIpos.x + 2)) && (ipos.y < (tIpos.y + 2)))
@@ -136,7 +140,7 @@ void Bullet::Tick()
       if (t->flags & Tank::P1) aliveP1--; else aliveP2--; // update counters
       t->flags &= Tank::P1 | Tank::P2;	// kill tank
       smoke[t->arrayIndex]->xpos = tankIpos[t->arrayIndex].x, smoke[t->arrayIndex]->ypos = tankIpos[t->arrayIndex].y;
-      flags = 0;						// destroy bullet
+      bulletFlags[id] = 0;						// destroy bullet
       break;
     }
   }
@@ -148,7 +152,7 @@ void Tank::Fire(unsigned int party, float2& pos, float2& dir)
   // Low-level: Send tank's flags, saves an OR
   // dir == speed, pos == pos in tank. args unnecessary
   static int currentBullet = 0;
-  bullet[currentBullet].flags |= Bullet::ACTIVE + party; // set owner, set active
+  bulletFlags[currentBullet] |= Bullet::ACTIVE + party; // set owner, set active
   bullet[currentBullet].pos = pos, bullet[currentBullet].speed = speed;
 
   if (++currentBullet == MAXBULLET) currentBullet = 0;
@@ -259,7 +263,8 @@ int2 glowArrayBounds[40];
 // Game::Init - Load data, setup playfield
 void Game::Init()
 {
-  printf("%i\n", sizeof(Tank));
+  //printf("%i\n", sizeof(Tank));
+  //printf("%i\n", sizeof(Bullet));
   m_Heights = new Surface("testdata/heightmap.png"), m_Backdrop = new Surface("testdata/backdrop.png"), m_Grid = new Surface(1024, 768);
   Pixel* a1 = m_Grid->GetBuffer(), *a2 = m_Backdrop->GetBuffer(), *a3 = m_Heights->GetBuffer();
   for (int y = 0; y < 768; y++) for (int idx = y * 1024, x = 0; x < 1024; x++, idx++) a1[idx] = (((x & 31) == 0) | ((y & 31) == 0)) ? 0x6600 : 0;
@@ -481,8 +486,8 @@ void Game::Tick(float a_DT)
 
   // Update bullets
   timer.Start();
-  for (unsigned int i = 0; i < MAXBULLET; i++)
-    bullet[i].Tick();
+  for (unsigned int i = 0; i < MAXBULLET; ++i)
+    bullet[i].Tick(i);
   timer.Stop();
    blTimingPrev += timer.Interval();
 

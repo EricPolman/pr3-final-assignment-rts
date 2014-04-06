@@ -353,8 +353,7 @@ Sprite::Sprite( Surface* a_Surface, unsigned int a_NumFrames ) :
 	m_NumFrames( a_NumFrames ),
 	m_CurrentFrame( 0 ),
 	m_Flags( 0 ),
-	m_Start( new unsigned int*[a_NumFrames] ),
-	m_Surface( a_Surface )
+  m_Surface(a_Surface)
 {
 	InitializeStartData();
 }
@@ -366,8 +365,7 @@ Sprite::Sprite( Surface* a_Surface, unsigned int a_NumFrames, unsigned int a_Fla
 	m_NumFrames( a_NumFrames ),
 	m_CurrentFrame( 0 ),
 	m_Flags( 0 ),
-	m_Start( new unsigned int*[a_NumFrames] ),
-	m_Surface( a_Surface )
+  m_Surface(a_Surface)
 {
 	InitializeStartData();
 	SetFlags( a_Flags );
@@ -378,6 +376,7 @@ Sprite::~Sprite()
 	delete m_Surface;
 	for ( unsigned int i = 0; i < m_NumFrames; i++ ) delete m_Start[i];
 	delete m_Start;
+  delete[] m_FramePtrs;
 }
 
 void Sprite::Draw( int a_X, int a_Y, Surface* a_Target )
@@ -386,7 +385,7 @@ void Sprite::Draw( int a_X, int a_Y, Surface* a_Target )
 	if ((a_Y < -m_Height) || (a_Y > (a_Target->GetHeight() + m_Height))) return;
 	int x1 = a_X, x2 = a_X + m_Width;
 	int y1 = a_Y, y2 = a_Y + m_Height;
-	Pixel* src = GetBuffer() + m_CurrentFrame * m_Width * 24;
+  Pixel* src = m_FramePtrs[m_CurrentFrame];// GetBuffer() + m_CurrentFrame * m_Width * 24;
 	if (x1 < 0)
 	{
 		src += -x1;
@@ -402,43 +401,41 @@ void Sprite::Draw( int a_X, int a_Y, Surface* a_Target )
 	Pixel* dest = a_Target->GetBuffer();
 	int xs;
 	const int dpitch = a_Target->GetPitch();
-	if ((x2 > x1) && (y2 > y1))
+	unsigned int addr = y1 * dpitch + x1;
+	const int width = x2 - x1;
+	const int height = y2 - y1;
+
+	for ( int y = 0; y < height; y++ )
 	{
-		unsigned int addr = y1 * dpitch + x1;
-		const int width = x2 - x1;
-		const int height = y2 - y1;
-		for ( int y = 0; y < height; y++ )
+		const int line = y + (y1 - a_Y);
+		const int lsx = m_FramePtrs[m_CurrentFrame][line] + a_X;
+		if (m_Flags & FLARE)
 		{
-			const int line = y + (y1 - a_Y);
-			const int lsx = m_Start[m_CurrentFrame][line] + a_X;
-			if (m_Flags & FLARE)
-			{
-				xs = (lsx > x1) ? lsx - x1 : 0;
-        for (int x = xs; x < width; x++)
+			xs = (lsx > x1) ? lsx - x1 : 0;
+      for (int x = xs; x < width; x++)
+      {
+        if ((*(dest + addr + x) ^ 0xFFFFFFFF))
         {
-          if ((*(dest + addr + x) ^ 0xFFFFFFFF))
+          const Pixel c1 = *(src + x);
+          if (c1 & 0xffffff)
           {
-            const Pixel c1 = *(src + x);
-            if (c1 & 0xffffff)
-            {
-              const Pixel c2 = *(dest + addr + x);
-              *(dest + addr + x) = AddBlend(c1, c2);
-            }
+            const Pixel c2 = *(dest + addr + x);
+            *(dest + addr + x) = AddBlend(c1, c2);
           }
         }
-			}
-			else 
-			{
-				xs = (lsx > x1)?lsx - x1:0;
-				for ( int x = xs; x < width; x++ )
-				{
-					const Pixel c1 = *(src + x);
-					if (c1 & 0xffffff) *(dest + addr + x) = c1;
-				}
-			}
-			addr += dpitch;
-			src += m_Pitch;
+      }
 		}
+		else 
+		{
+			xs = (lsx > x1)?lsx - x1:0;
+			for ( int x = xs; x < width; x++ )
+			{
+				const Pixel c1 = *(src + x);
+				if (c1 & 0xffffff) *(dest + addr + x) = c1;
+			}
+		}
+		addr += dpitch;
+		src += m_Pitch;
 	}
 }
 
@@ -467,23 +464,12 @@ void Sprite::DrawScaled( int a_X, int a_Y, int a_Width, int a_Height, Surface* a
 
 void Sprite::InitializeStartData()
 {
-    for ( unsigned int f = 0; f < m_NumFrames; ++f )
-    {
-        m_Start[f] = new unsigned int[m_Height];
-     	for ( int y = 0; y < m_Height; ++y )
-     	{
-      	    m_Start[f][y] = m_Width;
-			Pixel* addr = GetBuffer() + f * m_Width + y * m_Pitch;
-     	    for ( int x = 0; x < m_Width; ++x )
-     	    {
-                if (addr[x])
-     	        {
-     	            m_Start[f][y] = x;
-                    break;
-                }
-            }
-		}
-	}
+  m_FramePtrs = new Pixel*[m_NumFrames];
+
+  for (unsigned int f = 0; f < m_NumFrames; ++f)
+  {
+    m_FramePtrs[f] = &GetBuffer()[f * m_Height * m_Width];
+  }
 }
 
 Font::Font( char* a_File, char* a_Chars )

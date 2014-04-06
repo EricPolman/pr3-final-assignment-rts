@@ -153,7 +153,7 @@ public:
 	int GetHeight() { return m_Height; }
 	Pixel* GetBuffer() { return m_Surface->GetBuffer(); }	
 	unsigned int Frames() { return m_NumFrames; }
-	Surface* GetSurface() { return m_Surface; }
+  Surface* GetSurface() { return m_Surface; }
 private:
 	// Methods
 	void InitializeStartData();
@@ -164,6 +164,7 @@ private:
 	unsigned int m_Flags;
 	unsigned int** m_Start;
 	Surface* m_Surface;
+  Pixel** m_FramePtrs;
 };
 
 class Font

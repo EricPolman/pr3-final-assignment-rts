@@ -77,7 +77,7 @@ void Smoke::Tick()
     {
       puff[i].x++, puff[i].y += puff[i].vy, puff[i].vy += 3; //Integration of smoke puff
 
-      int animframe = (puff[i].life > 13) ? (9 - (puff[i].life - 14) / 5) : (puff[i].life / 2);
+      int animframe = (puff[i].life > 13) ? (9 - (puff[i].life - 14) / 5) : (puff[i].life >> 1);
       game->m_Smoke->SetFrame(animframe);
       game->m_Smoke->Draw(puff[i].x - 12, (puff[i].y >> 8) - 12, game->m_Surface);
       if (!--puff[i].life)  // Decrease life, if hits zero, reset smoke and start again

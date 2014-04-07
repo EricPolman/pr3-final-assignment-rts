@@ -1,7 +1,7 @@
 #include "template.h"
 #include "game.h"
 #include "surface.h"
-#include <smmintrin.h>
+//#include <smmintrin.h>
 
 #define TEST_COLLISION
 #define TEST_SMOKE
@@ -109,46 +109,38 @@ void Smoke::Tick()
   }
   else
   {
-    const static quint one = _mm_set_epi32(1, 1, 1, 1);
-    const static quint three = _mm_set_epi32(3, 3, 3, 3);
-    puffs.x4[0] = _mm_add_epi32(puffs.x4[0], one);
+    puffs.x4[0] = _mm_add_epi32(puffs.x4[0], _mm_set1_epi32(1));
     puffs.y4[0] = _mm_add_epi32(puffs.y4[0], puffs.vy4[0]);
-    puffs.vy4[0] = _mm_add_epi32(puffs.vy4[0], three);
+    puffs.vy4[0] = _mm_add_epi32(puffs.vy4[0], _mm_set1_epi32(3));
 
-    // Due to lack of int division and proper masking, other SIMD optimizations have no added value here.
+    quint& life4 = puffs.life4[0];
+    union { quint animframe4; int animframe[4]; };
+    animframe4 = _mm_srli_epi32(life4, 1);
+    quint mask4 = _mm_cmpgt_epi32(life4, _mm_set1_epi32(13));
+    quint diff4 = _mm_cvtps_epi32(_mm_floor_ps(_mm_div_ps(_mm_cvtepi32_ps(_mm_sub_epi32(life4, _mm_set1_epi32(14))), _mm_set_ps1(5.0f))));
+    diff4 = _mm_sub_epi32(_mm_set1_epi32(9), diff4);
+    animframe4 = _mm_sub_epi32(animframe4, _mm_and_si128(animframe4, mask4));
+    animframe4 = _mm_add_epi32(animframe4, _mm_and_si128(diff4, mask4));
 
-    int animframe = (puffs.life[0] > 13) ?
-      (9 - (puffs.life[0] - 14) / 5)
-      : (puffs.life[0] >> 1);
-    game->m_Smoke->SetFrame(animframe);
+    game->m_Smoke->SetFrame(animframe[0]);
     game->m_Smoke->Draw(puffs.x[0] - 8, (puffs.y[0] >> 8) - 8, game->m_Surface);
 
-    animframe = (puffs.life[1] > 13) ?
-      (9 - (puffs.life[1] - 14) / 5)
-      : (puffs.life[1] >> 1);
-    game->m_Smoke->SetFrame(animframe);
+    game->m_Smoke->SetFrame(animframe[1]);
     game->m_Smoke->Draw(puffs.x[1] - 8, (puffs.y[1] >> 8) - 8, game->m_Surface);
 
-    animframe = (puffs.life[2] > 13) ?
-      (9 - (puffs.life[2] - 14) / 5)
-      : (puffs.life[2] >> 1);
-    game->m_Smoke->SetFrame(animframe);
+    game->m_Smoke->SetFrame(animframe[2]);
     game->m_Smoke->Draw(puffs.x[2] - 8, (puffs.y[2] >> 8) - 8, game->m_Surface);
 
-    animframe = (puffs.life[3] > 13) ?
-      (9 - (puffs.life[3] - 14) / 5)
-      : (puffs.life[3] >> 1);
-    game->m_Smoke->SetFrame(animframe);
+    game->m_Smoke->SetFrame(animframe[3]);
     game->m_Smoke->Draw(puffs.x[3] - 8, (puffs.y[3] >> 8) - 8, game->m_Surface);
-
 
     const static quint vyStart4 = _mm_set1_epi32(-450);
     const static quint lifeStart4 = _mm_set1_epi32(63);
     const quint xStart4 = _mm_set1_epi32(xpos);
     const quint yStart4 = _mm_set1_epi32(ypos << 8);
 
-    puffs.life4[0] = _mm_sub_epi32(puffs.life4[0], one);
-    const quint lifeMask = _mm_cmpeq_epi32(puffs.life4[0], _mm_set1_epi32(0));
+    life4 = _mm_sub_epi32(life4, _mm_set1_epi32(1));
+    const quint lifeMask = _mm_cmpeq_epi32(life4, _mm_set1_epi32(0));
     puffs.x4[0] = _mm_sub_epi32(puffs.x4[0], _mm_and_si128(puffs.x4[0], lifeMask));
     puffs.x4[0] = _mm_add_epi32(puffs.x4[0], _mm_and_si128(xStart4, lifeMask));
 
@@ -347,10 +339,7 @@ void Game::Init()
     int u = max(0, min(1023, (int)(x - dx * h))), v = max(0, min(767, (int)(y - dy * h))), r = (int)Rand(255);
     a2[idx] = AddBlend(a1[u + v * 1024], ScaleColor(ScaleColor(0x33aa11, r) + ScaleColor(0xffff00, (255 - r)), (int)(max(0, dot) * 80.0f) + 10));
   }
-  /*auto p1Tank = new Surface("testdata/p1tank.tga");
-  auto p2Tank = new Surface("testdata/p2tank.tga");
-  m_P2Sprite = new AlignedSprite(p2Tank);//, 1, Sprite::FLARE);
-  m_P1Sprite = new AlignedSprite(p1Tank);*/
+
   m_Tank = new Tank[MAXP1 + MAXP2];
   memset(m_Tank, 0, sizeof(Tank)* (MAXP1 + MAXP2));
 

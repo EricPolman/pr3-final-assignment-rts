@@ -52,6 +52,7 @@ public:
 class Surface;
 class Surface8;
 class Sprite;
+class AlignedSprite;
 class Game
 {
 public:
@@ -65,7 +66,7 @@ public:
 	void PlayerInput();
 	void Tick( float a_DT );
   __declspec(align(16)) Surface* m_Surface, *m_Backdrop, *m_Heights, *m_Grid;
-	Sprite* m_P1Sprite, *m_P2Sprite, *m_PXSprite, *m_Smoke;
+	Sprite* m_PXSprite, *m_Smoke;
 	int m_ActiveP1, m_ActiveP2;
 	int m_MouseX, m_MouseY, m_DStartX, m_DStartY, m_DFrames;
 	bool m_LButton, m_PrevButton;

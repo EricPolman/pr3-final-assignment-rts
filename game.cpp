@@ -13,6 +13,8 @@ using namespace Tmpl8;
 
 __declspec(align(16)) Smoke* smoke[MAXP1 + MAXP2];
 
+AlignedSprite m_P1Sprite(new Surface("testdata/p1tank.tga")), m_P2Sprite(new Surface("testdata/p2tank.tga"));
+
 // global data (source scope)
 static Game* game;
 
@@ -327,14 +329,14 @@ void Tank::Tick(unsigned int id)
   ++aimCount;
 #endif
 }
-
 int2 glowArrayBounds[40];
 // Game::Init - Load data, setup playfield
 void Game::Init()
 {
   //printf("%i\n", sizeof(Tank));
   //printf("%i\n", sizeof(Bullet));
-  printf("%i\n", sizeof(Smoke));
+  printf("%i\n", sizeof(AlignedSprite));
+  printf("%p\n", this);
   m_Heights = new Surface("testdata/heightmap.png"), m_Backdrop = new Surface("testdata/backdrop.png"), m_Grid = new Surface(1024, 768);
   Pixel* a1 = m_Grid->GetBuffer(), *a2 = m_Backdrop->GetBuffer(), *a3 = m_Heights->GetBuffer();
   for (int y = 0; y < 768; y++) for (int idx = y * 1024, x = 0; x < 1024; x++, idx++) a1[idx] = (((x & 31) == 0) | ((y & 31) == 0)) ? 0x6600 : 0;
@@ -345,10 +347,13 @@ void Game::Init()
     int u = max(0, min(1023, (int)(x - dx * h))), v = max(0, min(767, (int)(y - dy * h))), r = (int)Rand(255);
     a2[idx] = AddBlend(a1[u + v * 1024], ScaleColor(ScaleColor(0x33aa11, r) + ScaleColor(0xffff00, (255 - r)), (int)(max(0, dot) * 80.0f) + 10));
   }
+  /*auto p1Tank = new Surface("testdata/p1tank.tga");
+  auto p2Tank = new Surface("testdata/p2tank.tga");
+  m_P2Sprite = new AlignedSprite(p2Tank);//, 1, Sprite::FLARE);
+  m_P1Sprite = new AlignedSprite(p1Tank);*/
   m_Tank = new Tank[MAXP1 + MAXP2];
   memset(m_Tank, 0, sizeof(Tank)* (MAXP1 + MAXP2));
-  m_P1Sprite = new Sprite(new Surface("testdata/p1tank.tga"), 1, Sprite::FLARE);
-  m_P2Sprite = new Sprite(new Surface("testdata/p2tank.tga"), 1, Sprite::FLARE);
+
   m_PXSprite = new Sprite(new Surface("testdata/deadtank.tga"), 1, Sprite::BLACKFLARE);
   m_Smoke = new Sprite(new Surface("testdata/smoke.tga"), 10, Sprite::FLARE);
   // create blue tanks
@@ -471,12 +476,12 @@ void Game::DrawTanks()
       m_PXSprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface); // draw dead tank
     else if (t.flags & Tank::P1) // draw blue tank
     {
-      m_P1Sprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface);
+      m_P1Sprite.Draw(ipos.x - 4, ipos.y - 4, m_Surface);
       m_Surface->Line(x, y, x + 8 * t.speed.x, y + 8 * t.speed.y, 0x4444ff);
     }
     else // draw red tank
     {
-      m_P2Sprite->Draw(ipos.x - 4, ipos.y - 4, m_Surface);
+      m_P2Sprite.Draw(ipos.x - 4, ipos.y - 4, m_Surface);
       m_Surface->Line(x, y, x + 8 * t.speed.x, y + 8 * t.speed.y, 0xff4444);
     }
 

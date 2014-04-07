@@ -6,22 +6,66 @@
 namespace Tmpl8 {
 
 #include "emmintrin.h"
-
-#define REDMASK	(0xff0000)
-#define GREENMASK (0x00ff00)
-#define BLUEMASK (0x0000ff)
+#include <smmintrin.h>
 
 typedef unsigned long Pixel;
+const unsigned int REDMASK = (0xff0000);
+const unsigned int GREENMASK = (0x00ff00);
+const unsigned int BLUEMASK = (0x0000ff);
 
-inline Pixel AddBlend( Pixel a_Color1, Pixel a_Color2 )
+static const __m128i REDMASK4 = _mm_set1_epi32(REDMASK);
+static const __m128i GREENMASK4 = _mm_set1_epi32(GREENMASK);
+static const __m128i BLUEMASK4 = _mm_set1_epi32(BLUEMASK);
+
+static __m128i AddBlend4(const __m128i &a_Color1, const __m128i &a_Color2)
 {
-	const unsigned int r = (a_Color1 & REDMASK) + (a_Color2 & REDMASK);
-	const unsigned int g = (a_Color1 & GREENMASK) + (a_Color2 & GREENMASK);
-	const unsigned int b = (a_Color1 & BLUEMASK) + (a_Color2 & BLUEMASK);
-	const unsigned r1 = (r & REDMASK) | (REDMASK * (r >> 24));
-	const unsigned g1 = (g & GREENMASK) | (GREENMASK * (g >> 16));
-	const unsigned b1 = (b & BLUEMASK) | (BLUEMASK * (b >> 8));
-	return (r1 + g1 + b1);
+
+  //const unsigned int r = (a_Color1 & REDMASK) + (a_Color2 & REDMASK);
+  //const unsigned int g = (a_Color1 & GREENMASK) + (a_Color2 & GREENMASK);
+  //const unsigned int b = (a_Color1 & BLUEMASK) + (a_Color2 & BLUEMASK);
+  const __m128i r = _mm_add_epi32(_mm_and_si128(a_Color1, REDMASK4), _mm_and_si128(a_Color2, REDMASK4));
+  const __m128i g = _mm_add_epi32(_mm_and_si128(a_Color1, GREENMASK4), _mm_and_si128(a_Color2, GREENMASK4));
+  const __m128i b = _mm_add_epi32(_mm_and_si128(a_Color1, BLUEMASK4), _mm_and_si128(a_Color2, BLUEMASK4));
+
+  //const unsigned r1 = (r & REDMASK) | (REDMASK * (r >> 24));
+  //const unsigned g1 = (g & GREENMASK) | (GREENMASK * (g >> 16));
+  //const unsigned b1 = (b & BLUEMASK) | (BLUEMASK * (b >> 8));
+
+  const __m128i r1 = _mm_or_si128(_mm_and_si128(r, REDMASK4), _mm_mullo_epi32(REDMASK4, _mm_srai_epi32(r, 24)));
+  const __m128i g1 = _mm_or_si128(_mm_and_si128(g, GREENMASK4), _mm_mullo_epi32(GREENMASK4, _mm_srai_epi32(g, 16)));
+  const __m128i b1 = _mm_or_si128(_mm_and_si128(b, BLUEMASK4), _mm_mullo_epi32(BLUEMASK4, _mm_srai_epi32(b, 8)));
+
+  //return (r1 + g1 + b1);
+  return _mm_add_epi32(_mm_add_epi32(r1, g1), b1);
+}
+/*
+static __m128 AddBlend4(__m128 a_Color1, __m128 a_Color2)
+{
+  __m128 col1Redmasked = _mm_and_ps(a_Color1, REDMASK4), col2Redmasked = _mm_and_ps(a_Color2, REDMASK4);
+  const __m128 r = *(__m128*)&_mm_add_epi32(*(__m128i*)&col1Redmasked, *(__m128i*)&col2Redmasked);
+
+  __m128 col1Greenmasked = _mm_and_ps(a_Color1, GREENMASK4), col2Greenmasked = _mm_and_ps(a_Color2, GREENMASK4);
+  const __m128 g = *(__m128*)&_mm_add_epi32(*(__m128i*)&col1Greenmasked, *(__m128i*)&col2Greenmasked);
+
+  __m128 col1Bluemasked = _mm_and_ps(a_Color1, BLUEMASK4), col2Bluemasked = _mm_and_ps(a_Color2, BLUEMASK4);
+  const __m128 b = *(__m128*)&_mm_add_epi32(*(__m128i*)&col1Bluemasked, *(__m128i*)&col2Bluemasked);
+
+  const __m128 r1 = _mm_or_ps(_mm_and_ps(r, REDMASK4), *(__m128*)&_mm_mul_epu32(*(__m128i*)&REDMASK4, _mm_srli_epi32(*(__m128i*)&REDMASK4, 24))); 
+  const __m128 g1 = _mm_or_ps(_mm_and_ps(g, GREENMASK4), *(__m128*)&_mm_mul_epu32(*(__m128i*)&GREENMASK4, _mm_srli_epi32(*(__m128i*)&GREENMASK4, 16)));
+  const __m128 b1 = _mm_or_ps(_mm_and_ps(b, BLUEMASK4), *(__m128*)&_mm_mul_epu32(*(__m128i*)&BLUEMASK4, _mm_srli_epi32(*(__m128i*)&BLUEMASK4, 8)));
+  
+  return _mm_add_ps(_mm_add_ps(r1, g1), b1);
+}*/
+
+inline Pixel AddBlend(Pixel a_Color1, Pixel a_Color2)
+{
+  const unsigned int r = (a_Color1 & REDMASK) + (a_Color2 & REDMASK);
+  const unsigned int g = (a_Color1 & GREENMASK) + (a_Color2 & GREENMASK);
+  const unsigned int b = (a_Color1 & BLUEMASK) + (a_Color2 & BLUEMASK);
+  const unsigned r1 = (r & REDMASK) | (REDMASK * (r >> 24));
+  const unsigned g1 = (g & GREENMASK) | (GREENMASK * (g >> 16));
+  const unsigned b1 = (b & BLUEMASK) | (BLUEMASK * (b >> 8));
+  return (r1 + g1 + b1);
 }
 
 // subtractive blending
@@ -181,6 +225,17 @@ public:
 private:
 	Surface* m_Surface;
 	int* m_Offset, *m_Width, *m_Trans, m_Height, m_CY1, m_CY2;
+};
+
+class AlignedSprite
+{
+public:
+  AlignedSprite(Surface* a_Surface);
+
+  __declspec(align(16)) union{ __m128i alignmentBuffers4[16][12][3]; Pixel alignmentBuffers[16][12][12]; };
+  void FillBuffer(Pixel* a_buffer, int a_x, int a_y);
+  
+  void Draw(int a_x, int a_y, Surface* a_target);
 };
 
 }; // namespace Tmpl8

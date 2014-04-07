@@ -578,4 +578,60 @@ void Font::Print( Surface* a_Target, char* a_Text, int a_X, int a_Y, bool clip )
 	}
 }
 
+AlignedSprite::AlignedSprite(Surface* a_Surface)
+//: m_Surface(a_Surface)
+{
+  memset(alignmentBuffers, 0, sizeof(alignmentBuffers));
+
+  for (int y = 0; y < 4; y++)
+  {
+    for (int x = 0; x < 4; x++)
+    {
+      FillBuffer(a_Surface->GetBuffer(), x, y);
+    }
+  }
+}
+
+void AlignedSprite::FillBuffer(Pixel* a_buffer, int a_x, int a_y)
+{
+  for (int y = a_y; y < a_y + 9; y++)
+  {
+    for (int x = a_x; x < a_x + 9; x++)
+    {
+      alignmentBuffers[a_y * 4 + a_x][y][x] = a_buffer[(y - a_y) * 9 + (x - a_x)];
+    }
+  }
+}
+
+
+void AlignedSprite::Draw(const int a_x, const int a_y, Surface* a_target)
+{
+  Pixel* dest = a_target->GetBuffer();
+
+  int2 alignedStart((a_x >> 2) << 2, (a_y >> 2) << 2);
+  int2 alignedEnd(alignedStart + int2(12, 12));
+
+  if (alignedStart.x > SCRWIDTH || alignedEnd.x < 0 ||
+    alignedStart.y > SCRHEIGHT || alignedEnd.y < 0)
+    return;
+
+  int2 offset(a_x - alignedStart.x, a_y - alignedStart.y);
+  int offsetInArray = (offset.y << 2) + offset.x;  
+
+  int2 arrayStart(alignedStart.x < 0 ? 0 : alignedStart.x, alignedStart.y < 0 ? 0 : alignedStart.y);
+  int2 arrayEnd(alignedEnd.x > SCRWIDTH ? SCRWIDTH : alignedEnd.x, alignedEnd.y > SCRHEIGHT ? SCRHEIGHT : alignedEnd.y);
+
+  for (int y = arrayStart.y; y < arrayEnd.y; ++y)
+  {
+    for (int x = arrayStart.x; x < arrayEnd.x; x+=4)
+    {
+      const __m128i& c1 = alignmentBuffers4[offsetInArray][y - alignedStart.y][(x - alignedStart.x) >> 2];
+      __m128i& c2 = *(__m128i*)&(dest[y * SCRWIDTH + x]);
+
+      c2 = AddBlend4(c1, c2);
+    }
+  }
+
+}
+
 }; // namespace Tmpl8

@@ -119,8 +119,13 @@ bool init()
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE);
 	if (wglSwapIntervalEXT) wglSwapIntervalEXT( 0 );
 	QueryPerformanceFrequency( &ticksPS );
-	surface = new Surface( SCRWIDTH, SCRHEIGHT, 0, SCRWIDTH );
-	surface->InitCharset();
+
+  surface = (Surface*)MALLOC64(SCRWIDTH * SCRHEIGHT * sizeof(Pixel));//new Surface( SCRWIDTH, SCRHEIGHT, (Pixel*)s->pixels, s->pitch ));
+  surface->SetBuffer(0);
+  surface->SetPitch(SCRWIDTH);
+  surface->m_Width = SCRWIDTH;
+  surface->m_Height = SCRHEIGHT;
+  surface->InitCharset();
 	return true;
 }
 
@@ -195,7 +200,12 @@ int main( int argc, char **argv )
 	{
 		SDL_SetVideoMode( SCRWIDTH, SCRHEIGHT, 32, SDL_HWSURFACE|SDL_DOUBLEBUF|SDL_FULLSCREEN );
 		SDL_Surface* s = SDL_GetVideoSurface();
-		surface = new Surface( SCRWIDTH, SCRHEIGHT, (Pixel*)s->pixels, s->pitch );
+    surface = (Surface*)MALLOC64(SCRWIDTH * SCRHEIGHT * sizeof(Pixel));//new Surface( SCRWIDTH, SCRHEIGHT, (Pixel*)s->pixels, s->pitch ));
+    surface->SetBuffer((Pixel*)s->pixels);
+    surface->SetPitch(s->pitch);
+    surface->m_Width = SCRWIDTH;
+    surface->m_Height = SCRHEIGHT;
+
 		surface->InitCharset();
 		vbo = false;
 		SDL_WM_SetCaption( "Template - FALLBACK", NULL );

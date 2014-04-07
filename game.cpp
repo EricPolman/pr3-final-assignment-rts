@@ -1,6 +1,7 @@
 #include "template.h"
 #include "game.h"
 #include "surface.h"
+#include <smmintrin.h>
 
 #define TEST_COLLISION
 #define TEST_SMOKE
@@ -10,6 +11,8 @@
 
 using namespace Tmpl8;
 
+__declspec(align(16)) Smoke* smoke[MAXP1 + MAXP2];
+
 // global data (source scope)
 static Game* game;
 
@@ -18,12 +21,12 @@ static float peakx[16] = { 248, 537, 695, 867, 887, 213, 376, 480, 683, 984, 364
 static float peaky[16] = { 199, 223, 83, 374, 694, 639, 469, 368, 545, 145, 63, 41, 392, 285, 447, 352 };
 static float peakh[16] = { 200, 150, 160, 255, 200, 255, 200, 300, 120, 100, 80, 80, 80, 160, 160, 160 };
 
+
 // player, bullet and smoke data
 float2 Tank::targetP1, Tank::targetP2;
 
 float2 pushForces[MAXP1 + MAXP2];
 
-Tank* tankGrid[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2][128];
 unsigned int idTankGrid[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
 int2 tankGridPos[MAXP1 + MAXP2];
 int2 tankIpos[MAXP1 + MAXP2];
@@ -32,12 +35,12 @@ int tileFlags[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2];
 
 float2 mountainPrecalcs[SCRHEIGHT / 2][SCRWIDTH / 2];
 
-_declspec(align(16)) int bulletFlags[MAXBULLET];
+int bulletFlags[MAXBULLET];
 Bullet bullet[MAXBULLET];
 
-Smoke* smoke[MAXP1 + MAXP2];
-
 static int aliveP1 = MAXP1, aliveP2 = MAXP2;
+
+__declspec(align(16)) Tank* tankGrid[SCRHEIGHT / 32 + 2][SCRWIDTH / 32 + 2][128];
 
 #ifdef TEST_MOUNTAINS
 unsigned long long mountainTiming;
@@ -66,50 +69,96 @@ void Smoke::Tick()
   {
     //if frame % 8 == 0, use p as index. if frame is 56, statement is true and p==7
     if (!(frame++ & 7)) // keep position 
-      puff[p].x = xpos,
-      puff[p].y = ypos << 8,
-      puff[p].vy = -450,
-      puff[p].life = 63;
+      puffs.x[p] = xpos,
+      puffs.y[p] = ypos << 8,
+      puffs.vy[p] = -450,
+      puffs.life[p] = 63;
 
     for (unsigned int i = 0; i < p; i++)
     {
-      puff[i].x++, puff[i].y += puff[i].vy, puff[i].vy += 3; //Integration of smoke puff
+      puffs.x[i]++, puffs.y[i] += puffs.vy[i], puffs.vy[i] += 3; //Integration of smoke puff
 
-      int animframe = (puff[i].life > 13) ? (9 - (puff[i].life - 14) / 5) : (puff[i].life >> 1);
+      int animframe = (puffs.life[i] > 13) ? (9 - (puffs.life[i] - 14) / 5) : (puffs.life[i] >> 1);
       game->m_Smoke->SetFrame(animframe);
-      game->m_Smoke->Draw(puff[i].x - 12, (puff[i].y >> 8) - 12, game->m_Surface);
-      if (!--puff[i].life)  // Decrease life, if hits zero, reset smoke and start again
-        puff[i].x = xpos,
-        puff[i].y = ypos << 8,
-        puff[i].vy = -450,
-        puff[i].life = 63;
+      game->m_Smoke->Draw(puffs.x[i] - 8, (puffs.y[i] >> 8) - 8, game->m_Surface);
+      if (!--puffs.life[i])  // Decrease life, if hits zero, reset smoke and start again
+        puffs.x[i] = xpos,
+        puffs.y[i] = ypos << 8,
+        puffs.vy[i] = -450,
+        puffs.life[i] = 63;
     }
   }
   else if (frame == 64)
   {
     ++frame;
     // Put 4 puffs next to eachother in memory.
-    puff[1] = puff[2];
-    puff[2] = puff[4];
-    puff[3] = puff[6];
+    puffs.x[1] = puffs.x[2];
+    puffs.y[1] = puffs.y[2];
+    puffs.vy[1] = puffs.vy[2];
+    puffs.life[1] = puffs.life[2];
+    puffs.x[2] = puffs.x[4];
+    puffs.y[2] = puffs.y[4];
+    puffs.vy[2] = puffs.vy[4];
+    puffs.life[2] = puffs.life[4];
+    puffs.x[3] = puffs.x[6];
+    puffs.y[3] = puffs.y[6];
+    puffs.vy[3] = puffs.vy[6];
+    puffs.life[3] = puffs.life[6];
   }
   else
   {
-    for (unsigned int i = 0; i < 4; i++)
-    {
-      puff[i].x++, puff[i].y += puff[i].vy, puff[i].vy += 3; //Integration of smoke puff
+    const static quint one = _mm_set_epi32(1, 1, 1, 1);
+    const static quint three = _mm_set_epi32(3, 3, 3, 3);
+    puffs.x4[0] = _mm_add_epi32(puffs.x4[0], one);
+    puffs.y4[0] = _mm_add_epi32(puffs.y4[0], puffs.vy4[0]);
+    puffs.vy4[0] = _mm_add_epi32(puffs.vy4[0], three);
 
-      int animframe = (puff[i].life > 13) ? (9 - (puff[i].life - 14) / 5) : (puff[i].life >> 1);
-      game->m_Smoke->SetFrame(animframe);
-      game->m_Smoke->Draw(puff[i].x - 12, (puff[i].y >> 8) - 12, game->m_Surface);
-      if (!--puff[i].life)  // Decrease life, if hits zero, reset smoke and start again
-        puff[i].x = xpos,
-        puff[i].y = ypos << 8,
-        puff[i].vy = -450,
-        puff[i].life = 63;
-    }
+    // Due to lack of int division and proper masking, other SIMD optimizations have no added value here.
+
+    int animframe = (puffs.life[0] > 13) ?
+      (9 - (puffs.life[0] - 14) / 5)
+      : (puffs.life[0] >> 1);
+    game->m_Smoke->SetFrame(animframe);
+    game->m_Smoke->Draw(puffs.x[0] - 8, (puffs.y[0] >> 8) - 8, game->m_Surface);
+
+    animframe = (puffs.life[1] > 13) ?
+      (9 - (puffs.life[1] - 14) / 5)
+      : (puffs.life[1] >> 1);
+    game->m_Smoke->SetFrame(animframe);
+    game->m_Smoke->Draw(puffs.x[1] - 8, (puffs.y[1] >> 8) - 8, game->m_Surface);
+
+    animframe = (puffs.life[2] > 13) ?
+      (9 - (puffs.life[2] - 14) / 5)
+      : (puffs.life[2] >> 1);
+    game->m_Smoke->SetFrame(animframe);
+    game->m_Smoke->Draw(puffs.x[2] - 8, (puffs.y[2] >> 8) - 8, game->m_Surface);
+
+    animframe = (puffs.life[3] > 13) ?
+      (9 - (puffs.life[3] - 14) / 5)
+      : (puffs.life[3] >> 1);
+    game->m_Smoke->SetFrame(animframe);
+    game->m_Smoke->Draw(puffs.x[3] - 8, (puffs.y[3] >> 8) - 8, game->m_Surface);
+
+
+    const static quint vyStart4 = _mm_set1_epi32(-450);
+    const static quint lifeStart4 = _mm_set1_epi32(63);
+    const quint xStart4 = _mm_set1_epi32(xpos);
+    const quint yStart4 = _mm_set1_epi32(ypos << 8);
+
+    puffs.life4[0] = _mm_sub_epi32(puffs.life4[0], one);
+    const quint lifeMask = _mm_cmpeq_epi32(puffs.life4[0], _mm_set1_epi32(0));
+    puffs.x4[0] = _mm_sub_epi32(puffs.x4[0], _mm_and_si128(puffs.x4[0], lifeMask));
+    puffs.x4[0] = _mm_add_epi32(puffs.x4[0], _mm_and_si128(xStart4, lifeMask));
+
+    puffs.y4[0] = _mm_sub_epi32(puffs.y4[0], _mm_and_si128(puffs.y4[0], lifeMask));
+    puffs.y4[0] = _mm_add_epi32(puffs.y4[0], _mm_and_si128(yStart4, lifeMask));
+
+    puffs.vy4[0] = _mm_sub_epi32(puffs.vy4[0], _mm_and_si128(puffs.vy4[0], lifeMask));
+    puffs.vy4[0] = _mm_add_epi32(puffs.vy4[0], _mm_and_si128(vyStart4, lifeMask));
+
+    puffs.life4[0] = _mm_sub_epi32(puffs.life4[0], _mm_and_si128(puffs.life4[0], lifeMask));
+    puffs.life4[0] = _mm_add_epi32(puffs.life4[0], _mm_and_si128(lifeStart4, lifeMask));
   }
-
 #ifdef TEST_SMOKE
   smokeTimer.Stop();
   smokeTiming += smokeTimer.Interval();
@@ -297,6 +346,7 @@ void Game::Init()
     a2[idx] = AddBlend(a1[u + v * 1024], ScaleColor(ScaleColor(0x33aa11, r) + ScaleColor(0xffff00, (255 - r)), (int)(max(0, dot) * 80.0f) + 10));
   }
   m_Tank = new Tank[MAXP1 + MAXP2];
+  memset(m_Tank, 0, sizeof(Tank)* (MAXP1 + MAXP2));
   m_P1Sprite = new Sprite(new Surface("testdata/p1tank.tga"), 1, Sprite::FLARE);
   m_P2Sprite = new Sprite(new Surface("testdata/p2tank.tga"), 1, Sprite::FLARE);
   m_PXSprite = new Sprite(new Surface("testdata/deadtank.tga"), 1, Sprite::BLACKFLARE);
@@ -310,7 +360,8 @@ void Game::Init()
     t.pos = float2((float)((i % 16) * 20), (float)((i / 16) * 20));
     t.speed = float2(0, 0), t.flags = Tank::ACTIVE | Tank::P1, t.maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
     t.arrayIndex = i;
-    smoke[t.arrayIndex] = new Smoke();
+    smoke[t.arrayIndex] = (Smoke*)MALLOC64(sizeof(Smoke));
+    smoke[t.arrayIndex]->frame = 0;
   }
   // create red tanks
   for (unsigned int i = 0; i < MAXP2; i++)
@@ -319,7 +370,8 @@ void Game::Init()
     t.pos = float2((float)((i % 32) * 20 + 700), (float)((i / 32) * 20));
     t.speed = float2(0, 0), t.flags = Tank::ACTIVE | Tank::P2, t.maxspeed = 0.3f;
     t.arrayIndex = MAXP1 + i;
-    smoke[t.arrayIndex] = new Smoke();
+    smoke[t.arrayIndex] = (Smoke*)MALLOC64(sizeof(Smoke));
+    smoke[t.arrayIndex]->frame = 0;
   }
   game = this; // for global reference
   m_LButton = m_PrevButton = false;

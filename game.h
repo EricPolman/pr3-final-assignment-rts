@@ -7,14 +7,22 @@ namespace Tmpl8 {
 #define MAXP2		 (MAXP1 << 2)	// because the player is smarter than the AI
 #define MAXBULLET	200
 
+typedef __m128i quint;
+typedef __m128 qufl;
+
 class Smoke
 {
 public:
-	struct Puff { int x, y, vy, life; };
+	struct Puff { 
+    union { int x[8]; quint x4[2]; };
+    union { int y[8]; quint y4[2]; };
+    union { int vy[8]; quint vy4[2]; };
+    union { int life[8]; quint life4[2]; };
+  };
 	Smoke() : frame( 0 ) {};
 	void Tick();
-	Puff puff[8];
-	int frame, xpos, ypos;
+  Puff puffs;
+	int frame, xpos, ypos; 
 };
 
 class Tank
@@ -56,12 +64,12 @@ public:
 	void DrawTanks();
 	void PlayerInput();
 	void Tick( float a_DT );
-	Surface* m_Surface, *m_Backdrop, *m_Heights, *m_Grid;
+  __declspec(align(16)) Surface* m_Surface, *m_Backdrop, *m_Heights, *m_Grid;
 	Sprite* m_P1Sprite, *m_P2Sprite, *m_PXSprite, *m_Smoke;
 	int m_ActiveP1, m_ActiveP2;
 	int m_MouseX, m_MouseY, m_DStartX, m_DStartY, m_DFrames;
 	bool m_LButton, m_PrevButton;
-	Tank* m_Tank;
+  __declspec(align(16)) Tank* m_Tank;
 };
 
 }; // namespace Templ8

@@ -111,11 +111,11 @@ public:
 	void ScaleColor( unsigned int a_Scale );
 	void Box( int x1, int y1, int x2, int y2, Pixel color );
 	void Bar( int x1, int y1, int x2, int y2, Pixel color );
-	void Resize( Surface* a_Orig );
+  void Resize(Surface* a_Orig);
+  int m_Width, m_Height, m_Pitch;
 private:
 	// Attributes
 	Pixel* m_Buffer;	
-	int m_Width, m_Height, m_Pitch;	
 	// Static attributes for the buildin font
 	static char s_Font[51][5][5];	
 	static int s_Transl[256];		

@@ -141,17 +141,20 @@ void Smoke::Tick()
 
     life4 = _mm_sub_epi32(life4, _mm_set1_epi32(1));
     const quint lifeMask = _mm_cmpeq_epi32(life4, _mm_set1_epi32(0));
-    puffs.x4[0] = _mm_sub_epi32(puffs.x4[0], _mm_and_si128(puffs.x4[0], lifeMask));
-    puffs.x4[0] = _mm_add_epi32(puffs.x4[0], _mm_and_si128(xStart4, lifeMask));
+    quint& puffsX4 = puffs.x4[0];
+    quint& puffsY4 = puffs.y4[0];
+    quint& puffsVY4 = puffs.vy4[0];
+    puffsX4 = _mm_sub_epi32(puffsX4, _mm_and_si128(puffsX4, lifeMask));
+    puffsX4 = _mm_add_epi32(puffsX4, _mm_and_si128(xStart4, lifeMask));
 
-    puffs.y4[0] = _mm_sub_epi32(puffs.y4[0], _mm_and_si128(puffs.y4[0], lifeMask));
-    puffs.y4[0] = _mm_add_epi32(puffs.y4[0], _mm_and_si128(yStart4, lifeMask));
+    puffsY4 = _mm_sub_epi32(puffsY4, _mm_and_si128(puffsY4, lifeMask));
+    puffsY4 = _mm_add_epi32(puffsY4, _mm_and_si128(yStart4, lifeMask));
 
-    puffs.vy4[0] = _mm_sub_epi32(puffs.vy4[0], _mm_and_si128(puffs.vy4[0], lifeMask));
-    puffs.vy4[0] = _mm_add_epi32(puffs.vy4[0], _mm_and_si128(vyStart4, lifeMask));
+    puffsVY4 = _mm_sub_epi32(puffsVY4, _mm_and_si128(puffsVY4, lifeMask));
+    puffsVY4 = _mm_add_epi32(puffsVY4, _mm_and_si128(vyStart4, lifeMask));
 
-    puffs.life4[0] = _mm_sub_epi32(puffs.life4[0], _mm_and_si128(puffs.life4[0], lifeMask));
-    puffs.life4[0] = _mm_add_epi32(puffs.life4[0], _mm_and_si128(lifeStart4, lifeMask));
+    life4 = _mm_sub_epi32(life4, _mm_and_si128(life4, lifeMask));
+    life4 = _mm_add_epi32(life4, _mm_and_si128(lifeStart4, lifeMask));
   }
 #ifdef TEST_SMOKE
   smokeTimer.Stop();

@@ -404,6 +404,7 @@ void Sprite::Draw( int a_X, int a_Y, Surface* a_Target )
 	unsigned int addr = y1 * dpitch + x1;
 	const int width = x2 - x1;
 	const int height = y2 - y1;
+
   if (m_Flags & FLARE)
   {
     for (int y = 0; y < height; y++)
@@ -414,7 +415,7 @@ void Sprite::Draw( int a_X, int a_Y, Surface* a_Target )
       xs = (lsx > x1) ? lsx - x1 : 0;
       for (int x = xs; x < width; x++)
       {
-        if ((*(dest + addr + x) ^ 0xFFFFFFFF))
+        if ((*(dest + addr + x) ^ 0xFFFFFFFF)) // if dest != white
         {
           const Pixel c1 = *(src + x);
           if (c1 & 0xffffff)

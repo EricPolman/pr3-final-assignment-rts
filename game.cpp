@@ -190,11 +190,12 @@ void Bullet::Tick(int id)
   if (!(tileFlags[1 + currentTile.y][1 + currentTile.x] & ((bulletFlags[id] & Tank::P1) ? Tank::P2 : Tank::P1)))
     return;
 
+  const int2& ipos = int2(pos.x, pos.y);
+
   for (unsigned int i = 0; i < idTankGrid[1+currentTile.y][1+currentTile.x]; i++)
   {
     Tank* t = tankGrid[1 + currentTile.y][1 + currentTile.x][i];
     const int2& tIpos = tankIpos[t->arrayIndex];
-    const int2& ipos = *((int2*)&(pos));
 
     if (t->flags & (Tank::ACTIVE) && t->flags & ((bulletFlags[id] & Bullet::P1) ? Tank::P2 : Tank::P1))
     {

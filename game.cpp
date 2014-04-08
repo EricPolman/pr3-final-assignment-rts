@@ -23,7 +23,6 @@ static float peakx[16] = { 248, 537, 695, 867, 887, 213, 376, 480, 683, 984, 364
 static float peaky[16] = { 199, 223, 83, 374, 694, 639, 469, 368, 545, 145, 63, 41, 392, 285, 447, 352 };
 static float peakh[16] = { 200, 150, 160, 255, 200, 255, 200, 300, 120, 100, 80, 80, 80, 160, 160, 160 };
 
-
 // player, bullet and smoke data
 float2 Tank::targetP1, Tank::targetP2;
 
@@ -331,7 +330,6 @@ void Game::Init()
   //printf("%i\n", sizeof(Tank));
   //printf("%i\n", sizeof(Bullet));
   printf("%i\n", sizeof(AlignedSprite));
-  printf("%p\n", this);
   m_Heights = new Surface("testdata/heightmap.png"), m_Backdrop = new Surface("testdata/backdrop.png"), m_Grid = new Surface(1024, 768);
   Pixel* a1 = m_Grid->GetBuffer(), *a2 = m_Backdrop->GetBuffer(), *a3 = m_Heights->GetBuffer();
   for (int y = 0; y < 768; y++) for (int idx = y * 1024, x = 0; x < 1024; x++, idx++) a1[idx] = (((x & 31) == 0) | ((y & 31) == 0)) ? 0x6600 : 0;
@@ -349,12 +347,12 @@ void Game::Init()
   m_PXSprite = new Sprite(new Surface("testdata/deadtank.tga"), 1, Sprite::BLACKFLARE);
   m_Smoke = new Sprite(new Surface("testdata/smoke.tga"), 10, Sprite::FLARE);
   // create blue tanks
-  Tank::targetP1 = float2(SCRWIDTH / 2, SCRHEIGHT / 2); 
-  Tank::targetP2 = float2(SCRWIDTH / 2, SCRHEIGHT / 2); // move to player base
+  Tank::targetP1 = float2(SCRWIDTH * 2, SCRHEIGHT / 2); 
+  Tank::targetP2 = float2(-1024, SCRHEIGHT / 2); // move to player base
   for (unsigned int i = 0; i < MAXP1; i++)
   {
     Tank& t = m_Tank[i];// = new Tank();
-    t.pos = float2((float)((i % 16) * 20), (float)((i / 16) * 20));
+    t.pos = float2(SCRWIDTH / 2 - 100 - (float)((i / 60) * 13), (float)((i % 60) * 13));
     t.speed = float2(0, 0), t.flags = Tank::ACTIVE | Tank::P1, t.maxspeed = (i < (MAXP1 / 2)) ? 0.65f : 0.45f;
     t.arrayIndex = i;
     smoke[t.arrayIndex] = (Smoke*)MALLOC64(sizeof(Smoke));
@@ -364,7 +362,7 @@ void Game::Init()
   for (unsigned int i = 0; i < MAXP2; i++)
   {
     Tank& t = m_Tank[i + MAXP1];// = new Tank();
-    t.pos = float2((float)((i % 32) * 20 + 700), (float)((i / 32) * 20));
+    t.pos = float2(SCRWIDTH / 2 + 100 + (float)((i / 60) * 13), (float)((i % 60) * 13));
     t.speed = float2(0, 0), t.flags = Tank::ACTIVE | Tank::P2, t.maxspeed = 0.3f;
     t.arrayIndex = MAXP1 + i;
     smoke[t.arrayIndex] = (Smoke*)MALLOC64(sizeof(Smoke));

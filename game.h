@@ -3,9 +3,9 @@
 
 namespace Tmpl8 {
 
-#define MAXP1		 (256)				// increase to test your optimized code
+#define MAXP1		 (65536 >> 2)				// increase to test your optimized code
 #define MAXP2		 (MAXP1 << 2)	// because the player is smarter than the AI
-#define MAXBULLET	200
+#define MAXBULLET	1024
 
 typedef __m128i quint;
 typedef __m128 qufl;

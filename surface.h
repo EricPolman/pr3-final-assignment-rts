@@ -17,19 +17,12 @@ static const __m128i REDMASK4 = _mm_set1_epi32(REDMASK);
 static const __m128i GREENMASK4 = _mm_set1_epi32(GREENMASK);
 static const __m128i BLUEMASK4 = _mm_set1_epi32(BLUEMASK);
 
+// Credits to Max Oomen for the __m128i version. Works better than the hacky __m128 version I wrote.
 static __m128i AddBlend4(const __m128i &a_Color1, const __m128i &a_Color2)
 {
-
-  //const unsigned int r = (a_Color1 & REDMASK) + (a_Color2 & REDMASK);
-  //const unsigned int g = (a_Color1 & GREENMASK) + (a_Color2 & GREENMASK);
-  //const unsigned int b = (a_Color1 & BLUEMASK) + (a_Color2 & BLUEMASK);
   const __m128i r = _mm_add_epi32(_mm_and_si128(a_Color1, REDMASK4), _mm_and_si128(a_Color2, REDMASK4));
   const __m128i g = _mm_add_epi32(_mm_and_si128(a_Color1, GREENMASK4), _mm_and_si128(a_Color2, GREENMASK4));
   const __m128i b = _mm_add_epi32(_mm_and_si128(a_Color1, BLUEMASK4), _mm_and_si128(a_Color2, BLUEMASK4));
-
-  //const unsigned r1 = (r & REDMASK) | (REDMASK * (r >> 24));
-  //const unsigned g1 = (g & GREENMASK) | (GREENMASK * (g >> 16));
-  //const unsigned b1 = (b & BLUEMASK) | (BLUEMASK * (b >> 8));
 
   const __m128i r1 = _mm_or_si128(_mm_and_si128(r, REDMASK4), _mm_mullo_epi32(REDMASK4, _mm_srai_epi32(r, 24)));
   const __m128i g1 = _mm_or_si128(_mm_and_si128(g, GREENMASK4), _mm_mullo_epi32(GREENMASK4, _mm_srai_epi32(g, 16)));
